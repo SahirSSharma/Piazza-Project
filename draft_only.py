@@ -2,7 +2,7 @@ import os, re, sys, json, html, getpass, smtplib, time
 from pathlib import Path
 from email.mime.text import MIMEText
 
-# Load .env from project root so credentials never need to be set manually
+# Load .env from project root (local runs only — cloud sets env vars directly)
 _env = Path(__file__).parent / ".env"
 if _env.exists():
     for _line in _env.read_text().splitlines():
@@ -13,12 +13,11 @@ if _env.exists():
 import anthropic
 from piazza_api import Piazza
 
-SYLLABUS_PATH = "syllabus.txt"
-GATE_MODEL = "claude-haiku-4-5"
-POLL_LIMIT = 30
-POLL_INTERVAL = 120          # seconds between scans
-OUTPUT_FILE = "drafts.txt"
-SEEN_FILE = "seen.json"      # tracks processed post numbers across restarts
+SYLLABUS_PATH = os.environ.get("SYLLABUS_PATH", "syllabus.txt")
+GATE_MODEL    = "claude-haiku-4-5"
+POLL_LIMIT    = 30
+POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL", "120"))
+SEEN_FILE     = os.environ.get("SEEN_FILE", "seen.json")
 
 GATE_SYSTEM = """You triage questions posted to a college course forum. You answer ONLY logistical / syllabus / policy questions, using ONLY the syllabus provided, and you stay out of course content.
 
@@ -39,15 +38,13 @@ SYLLABUS:
 
 def load_syllabus():
     if not os.path.exists(SYLLABUS_PATH):
-        sys.exit(f"ERROR: {SYLLABUS_PATH} not found in this folder.")
+        sys.exit(f"ERROR: {SYLLABUS_PATH} not found.")
     with open(SYLLABUS_PATH, encoding="utf-8") as f:
         return f.read().strip()
 
 def load_seen():
     p = Path(SEEN_FILE)
-    if p.exists():
-        return set(json.loads(p.read_text()))
-    return set()
+    return set(json.loads(p.read_text())) if p.exists() else set()
 
 def save_seen(seen):
     Path(SEEN_FILE).write_text(json.dumps(sorted(seen)))
@@ -84,111 +81,111 @@ def gate(client, syllabus, question):
                 pass
         return {"category": "skip"}
 
-def send_email(subject, body):
-    sender = os.environ.get("NOTIFY_EMAIL", "")
-    app_password = os.environ.get("GMAIL_APP_PASSWORD", "")
-    if not sender or not app_password:
-        print("  [email skipped — NOTIFY_EMAIL or GMAIL_APP_PASSWORD not set]")
+def post_answer(network, post, answer):
+    """Post answer as a student answer (s_answer). Falls back to followup if permission denied."""
+    cid = post.get("id")
+    try:
+        network._rpc.content_student_answer(cid, answer, revision=0)
+        return "s_answer"
+    except Exception:
+        network.create_followup(post, answer)
+        return "followup"
+
+def send_confirmation(nr, question, answer, source, post_type):
+    sender   = os.environ.get("NOTIFY_EMAIL", "")
+    app_pass = os.environ.get("GMAIL_APP_PASSWORD", "")
+    if not sender or not app_pass:
         return
+    subject = f"Piazza Bot Posted: @{nr} — {question[:55].replace(chr(10), ' ')}"
+    body = (
+        f"The bot just posted an answer on Piazza.\n\n"
+        f"Post: @{nr}\n"
+        f"Type: {post_type}\n\n"
+        f"QUESTION:\n{question}\n\n"
+        f"ANSWER POSTED:\n{answer}\n\n"
+        f"SOURCE: {source}\n"
+    )
     msg = MIMEText(body, "plain", "utf-8")
     msg["Subject"] = subject
-    msg["From"] = sender
-    msg["To"] = sender
+    msg["From"]    = sender
+    msg["To"]      = sender
     try:
         with smtplib.SMTP("smtp.gmail.com", 587) as s:
             s.starttls()
-            s.login(sender, app_password)
+            s.login(sender, app_pass)
             s.send_message(msg)
-        print("  [email sent]")
+        print("  [confirmation email sent]")
     except Exception as e:
         print(f"  [email failed: {e}]")
 
-def scan_once(network, client, syllabus, seen, out):
-    new_drafts = 0
+def scan_once(network, client, syllabus, seen):
+    posted = 0
     for post in network.iter_all_posts(limit=POLL_LIMIT):
         nr = post.get("nr", "?")
         if nr in seen:
             continue
+        # Mark seen immediately — prevents double-posting on restart since
+        # s_answer posts are detected by needs_answer() on subsequent scans.
         seen.add(nr)
         if not needs_answer(post):
             continue
         q = question_text_of(post)
         if not q:
             continue
-        r = gate(client, syllabus, q)
-        cat = r.get("category", "skip")
-        header = f"@{nr}  [{cat}]"
-        print(f"  {header}  {q[:70].replace(chr(10), ' ')}")
-        out.write(f"{header}\nQUESTION: {q}\n")
+        r    = gate(client, syllabus, q)
+        cat  = r.get("category", "skip")
+        print(f"  @{nr} [{cat}] {q[:65].replace(chr(10), ' ')}")
         if cat == "syllabus" and r.get("answer"):
-            new_drafts += 1
             answer = r["answer"]
             source = r.get("source", "")
-            evidence = r.get("evidence", "")
-            print(f"    DRAFT: {answer[:110]}")
-            out.write(f"DRAFT ANSWER: {answer}\nSOURCE: {source}\nEVIDENCE: {evidence}\n")
-            subject = f"Piazza Draft Ready: @{nr} — {q[:55].replace(chr(10), ' ')}"
-            body = (
-                f"A new syllabus question on Piazza has a draft answer ready for your review.\n\n"
-                f"Post: @{nr}\n\n"
-                f"QUESTION:\n{q}\n\n"
-                f"DRAFT ANSWER:\n{answer}\n\n"
-                f"SOURCE: {source}\n\n"
-                f"EVIDENCE:\n{evidence}\n\n"
-                f"---\nThis is a draft only. Nothing has been posted to Piazza.\n"
-                f"Review drafts.txt for the full log.\n"
-            )
-            send_email(subject, body)
+            try:
+                ptype = post_answer(network, post, answer)
+                posted += 1
+                print(f"    ✓ posted ({ptype}): {answer[:100]}")
+                send_confirmation(nr, q, answer, source, ptype)
+            except Exception as e:
+                print(f"    ✗ post failed: {e}")
         elif cat == "content":
-            print("    -> leave for a human")
+            print("    -> content, skipping")
         elif cat == "not_found":
-            print("    -> flag for staff")
-        out.write("-" * 60 + "\n")
-        out.flush()
-    return new_drafts
+            print("    -> not in syllabus, skipping")
+    return posted
 
 def main():
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        sys.exit("ERROR: ANTHROPIC_API_KEY is not set.")
-    syllabus = load_syllabus()
-    client = anthropic.Anthropic()
+    for var in ("ANTHROPIC_API_KEY", "PIAZZA_EMAIL", "PIAZZA_PASSWORD", "PIAZZA_NETWORK"):
+        if not os.environ.get(var):
+            sys.exit(f"ERROR: {var} is not set.")
 
-    print("\n--- READ-ONLY mode: this script never posts to Piazza ---")
-    piazza_email = os.environ.get("PIAZZA_EMAIL") or input("Piazza email: ")
-    piazza_password = os.environ.get("PIAZZA_PASSWORD") or getpass.getpass("Piazza password: ")
-    network_id = (os.environ.get("PIAZZA_NETWORK") or input("Class network id (from piazza.com/class/THIS_PART): ")).strip()
+    syllabus = load_syllabus()
+    client   = anthropic.Anthropic()
 
     p = Piazza()
     try:
-        p.user_login(email=piazza_email, password=piazza_password)
+        p.user_login(email=os.environ["PIAZZA_EMAIL"], password=os.environ["PIAZZA_PASSWORD"])
     except Exception as e:
-        sys.exit(f"Login failed: {e}\nIf you sign in with Google/SSO, set a direct password via 'Forgot Password' on piazza.com.")
+        sys.exit(f"Piazza login failed: {e}")
 
-    network = p.network(network_id)
-    seen = load_seen()
+    network = p.network(os.environ["PIAZZA_NETWORK"])
+    seen    = load_seen()
 
-    print(f"Connected. Polling every {POLL_INTERVAL}s. Press Ctrl+C to stop.\n")
+    print(f"Connected. Polling every {POLL_INTERVAL}s. Ctrl+C to stop.\n")
 
-    out = open(OUTPUT_FILE, "a", encoding="utf-8")
-    try:
-        while True:
-            ts = time.strftime("%Y-%m-%d %H:%M:%S")
-            print(f"[{ts}] Scanning {POLL_LIMIT} recent posts...")
-            try:
-                new_drafts = scan_once(network, client, syllabus, seen, out)
-                save_seen(seen)
-                if new_drafts:
-                    print(f"  → {new_drafts} new draft(s) written and emailed.")
-                else:
-                    print("  → Nothing new.")
-            except Exception as e:
-                print(f"  [scan error: {e}]")
-            print(f"  Next scan in {POLL_INTERVAL}s...\n")
-            time.sleep(POLL_INTERVAL)
-    except KeyboardInterrupt:
-        print("\nStopped by user. Drafts saved to drafts.txt.")
-    finally:
-        out.close()
+    while True:
+        ts = time.strftime("%Y-%m-%d %H:%M:%S")
+        print(f"[{ts}] Scanning...")
+        try:
+            n = scan_once(network, client, syllabus, seen)
+            save_seen(seen)
+            print(f"  → {n} posted." if n else "  → Nothing new.")
+        except KeyboardInterrupt:
+            raise
+        except Exception as e:
+            print(f"  [scan error: {e}]")
+        print(f"  Next scan in {POLL_INTERVAL}s.\n")
+        time.sleep(POLL_INTERVAL)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nStopped.")
