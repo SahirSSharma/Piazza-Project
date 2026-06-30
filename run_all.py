@@ -1,11 +1,11 @@
 """
 Runs both bots as separate subprocesses in a single Railway worker.
 
-  bot.py      — COGS 9 bot (runs forever)
-  chem_bot.py — CHEM 11 bot (exits automatically after 10 content posts)
+  bot.py         — primary bot (runs forever)
+  assistant_b.py — secondary bot (exits automatically after reaching its post limit)
 
 Railway requires a single entry point per service. This script starts both
-and keeps the container alive as long as the COGS 9 bot is running.
+and keeps the container alive as long as the primary bot is running.
 """
 import subprocess, sys, os, time
 from pathlib import Path
@@ -18,14 +18,14 @@ def launch(script):
         env=os.environ.copy()
     )
 
-cogs9 = launch("bot.py")
-chem  = launch("chem_bot.py")
+primary   = launch("bot.py")
+secondary = launch("assistant_b.py")
 
-print(f"Both bots started. COGS 9 pid={cogs9.pid} | CHEM 11 pid={chem.pid}")
+print(f"Both bots started. Primary pid={primary.pid} | Secondary pid={secondary.pid}")
 
-# Wait for chem bot to finish (self-terminates at 10 content posts)
-chem.wait()
-print("CHEM 11 bot has exited. COGS 9 bot continues running.")
+# Wait for secondary bot to finish (self-terminates at post limit)
+secondary.wait()
+print("Secondary bot has exited. Primary bot continues running.")
 
-# Keep the container alive while the COGS 9 bot is still running
-cogs9.wait()
+# Keep the container alive while the primary bot is still running
+primary.wait()

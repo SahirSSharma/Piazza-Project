@@ -15,7 +15,7 @@ from piazza_api import Piazza
 
 # ─── CONFIGURATION ────────────────────────────────────────────────────────────
 # Uses CHEM_* env vars so both bots can run simultaneously without interfering.
-SYLLABUS_PATH = os.environ.get("CHEM_SYLLABUS_PATH", "chem_syllabus.txt")
+SYLLABUS_PATH = os.environ.get("CHEM_SYLLABUS_PATH", "syllabus_b.txt")
 SEEN_FILE     = os.environ.get("CHEM_SEEN_FILE", "chem_seen.json")
 POLL_LIMIT    = 30
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL", "120"))
@@ -26,16 +26,12 @@ POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL", "120"))
 GATE_MODEL    = "claude-haiku-4-5"
 CONTENT_MODEL = "claude-sonnet-4-6"
 
-# Stop automatically after this many content answers are posted.
-# Per the CHEM 11 syllabus: 10 substantial contributions = all 40 Piazza points.
+# Stop automatically after this many answers are posted.
 CONTENT_LIMIT      = int(os.environ.get("CHEM_CONTENT_LIMIT", "10"))
 CONTENT_COUNT_FILE = os.environ.get("CHEM_COUNT_FILE", "chem_content_count.json")
 
 # ─── STEP 2: The gate ────────────────────────────────────────────────────────
-# Classifies each question. CHEM 11-specific twist (from syllabus page 4):
-#   - "content" questions are SUBSTANTIAL contributions → bot answers them
-#   - "syllabus" questions are NOT substantial but still useful to answer
-#   - "exam"    questions are never answered (academic integrity)
+# Classifies each question before the bot decides whether to answer.
 #
 # Pseudocode:
 #   given question + syllabus →
@@ -67,8 +63,7 @@ SYLLABUS:
 
 # ─── STEP 3: The chemistry answerer ──────────────────────────────────────────
 # Only called when the gate returns "content". Uses Sonnet for better accuracy
-# on science questions. Answers are written at the level of a CHEM 11 student
-# (non-science major, intro level).
+# on science questions. Answers are written at intro-level (non-science major).
 CONTENT_SYSTEM = """You are a helpful and encouraging chemistry tutor for CHEM 11 (Introduction to General Chemistry for non-science majors) at UCSD.
 
 The course uses: Fundamentals of General, Organic, and Biological Chemistry, 8th ed. by McMurry, Ballantine, Hoeger, and Peterson.
@@ -107,7 +102,6 @@ def save_seen(seen):
     Path(SEEN_FILE).write_text(json.dumps(sorted(seen)))
 
 def load_content_count():
-    """Load the number of content answers posted so far (persists across restarts)."""
     p = Path(CONTENT_COUNT_FILE)
     return json.loads(p.read_text()) if p.exists() else 0
 
@@ -220,7 +214,7 @@ def scan_once(network, client, syllabus, seen, post_count):
     Single scan pass.
 
     Pseudocode for each post:
-      1. Skip if already processed (chem_seen.json)
+      1. Skip if already processed (seen file)
       2. Skip if already answered (needs_answer check)
       3. Gate classifies: syllabus / content / exam / not_found / skip
       4a. If "syllabus" → answer from syllabus text (gate already generated it)
@@ -228,7 +222,7 @@ def scan_once(network, client, syllabus, seen, post_count):
       4c. If "exam"     → skip (academic integrity)
       4d. Otherwise     → skip
 
-    Counts ALL posted answers (syllabus + content) toward the 10-post limit.
+    Counts ALL posted answers (syllabus + content) toward the post limit.
     Returns new_posts count for this scan.
     """
     new_posts = 0
@@ -314,12 +308,12 @@ def main():
         print(f"Post limit already reached ({post_count}/{CONTENT_LIMIT}). Nothing to do.")
         sys.exit(0)
 
-    print(f"CHEM 11 bot connected. Polling every {POLL_INTERVAL}s.")
+    print(f"Bot B connected. Polling every {POLL_INTERVAL}s.")
     print(f"Answers posted: {post_count}/{CONTENT_LIMIT}. Ctrl+C to stop.\n")
 
     while True:
         ts = time.strftime("%Y-%m-%d %H:%M:%S")
-        print(f"[{ts}] Scanning CHEM 11... ({post_count}/{CONTENT_LIMIT} answers posted)")
+        print(f"[{ts}] Scanning... ({post_count}/{CONTENT_LIMIT} answers posted)")
         try:
             new_posts = scan_once(network, client, syllabus, seen, post_count)
             save_seen(seen)
@@ -330,7 +324,7 @@ def main():
             # Stop once the Piazza participation goal is met
             if post_count >= CONTENT_LIMIT:
                 print(f"\nObjective complete: {post_count}/{CONTENT_LIMIT} answers posted.")
-                print("All 40 Piazza participation points secured. Bot shutting down.")
+                print("All participation points secured. Bot shutting down.")
                 sys.exit(0)
 
         except KeyboardInterrupt:
