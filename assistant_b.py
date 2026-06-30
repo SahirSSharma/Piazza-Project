@@ -30,6 +30,9 @@ CONTENT_MODEL = "claude-sonnet-4-6"
 CONTENT_LIMIT      = int(os.environ.get("CHEM_CONTENT_LIMIT", "10"))
 CONTENT_COUNT_FILE = os.environ.get("CHEM_COUNT_FILE", "chem_content_count.json")
 
+_scan_count_b = 0
+_last_post_b = None   # dict or None
+
 # ─── STEP 2: The gate ────────────────────────────────────────────────────────
 # Classifies each question before the bot decides whether to answer.
 #
@@ -207,6 +210,56 @@ def send_confirmation(nr, question, answer, category, post_type, post_count, lim
         print(f"  [email failed: {e}]")
 
 
+# ─── INSTRUMENTATION ─────────────────────────────────────────────────────────
+
+def write_status_b(seen, post_count, status="running", objective_complete=False):
+    """Write assistant_b_status.json. Wrapped in try/except — never crashes the bot."""
+    global _scan_count_b, _last_post_b
+    try:
+        data = {
+            "bot": "B",
+            "course": "CHEM 11",
+            "status": status,
+            "pid": os.getpid(),
+            "last_scan": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "scan_count": _scan_count_b,
+            "posts_answered": post_count,
+            "post_limit": CONTENT_LIMIT,
+            "objective_complete": objective_complete,
+            "seen_count": len(seen),
+            "poll_interval": POLL_INTERVAL,
+            "last_post": _last_post_b,
+        }
+        Path("assistant_b_status.json").write_text(json.dumps(data))
+    except Exception as e:
+        print(f"  [status write error: {e}]")
+
+def append_activity_b(nr, question, category, answer):
+    """Append one entry to activity_log.json (shared with Bot A). Max 100 entries."""
+    try:
+        log_path = Path("activity_log.json")
+        try:
+            entries = json.loads(log_path.read_text()) if log_path.exists() else []
+            if not isinstance(entries, list):
+                entries = []
+        except Exception:
+            entries = []
+        entry = {
+            "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "bot": "B",
+            "nr": nr,
+            "question": question[:300],
+            "category": category,
+            "answer": answer[:500],
+            "posted": True,
+        }
+        entries.append(entry)
+        entries = entries[-100:]
+        log_path.write_text(json.dumps(entries))
+    except Exception as e:
+        print(f"  [activity log error: {e}]")
+
+
 # ─── STEP 7: Scan loop ───────────────────────────────────────────────────────
 
 def scan_once(network, client, syllabus, seen, post_count):
@@ -225,7 +278,9 @@ def scan_once(network, client, syllabus, seen, post_count):
     Counts ALL posted answers (syllabus + content) toward the post limit.
     Returns new_posts count for this scan.
     """
+    global _scan_count_b, _last_post_b
     new_posts = 0
+    _scan_count_b += 1
 
     for post in network.iter_all_posts(limit=POLL_LIMIT):
         nr = post.get("nr", "?")
@@ -272,11 +327,14 @@ def scan_once(network, client, syllabus, seen, post_count):
                 ptype = post_answer(network, post, answer)
                 new_posts += 1
                 current = post_count + new_posts
+                _last_post_b = {"nr": nr, "question": q[:300], "category": cat, "answer": answer[:500], "time": time.strftime("%Y-%m-%d %H:%M:%S")}
+                append_activity_b(nr, q, cat, answer)
                 print(f"    ✓ posted ({ptype}) [{current}/{CONTENT_LIMIT}]: {answer[:100]}")
                 send_confirmation(nr, q, answer, cat, ptype, current, CONTENT_LIMIT)
             except Exception as e:
                 print(f"    ✗ post failed: {e}")
 
+    write_status_b(seen, post_count + new_posts)
     return new_posts
 
 
@@ -306,6 +364,7 @@ def main():
 
     if post_count >= CONTENT_LIMIT:
         print(f"Post limit already reached ({post_count}/{CONTENT_LIMIT}). Nothing to do.")
+        write_status_b(seen, post_count, status="complete", objective_complete=True)
         sys.exit(0)
 
     print(f"Bot B connected. Polling every {POLL_INTERVAL}s.")
@@ -325,6 +384,7 @@ def main():
             if post_count >= CONTENT_LIMIT:
                 print(f"\nObjective complete: {post_count}/{CONTENT_LIMIT} answers posted.")
                 print("All participation points secured. Bot shutting down.")
+                write_status_b(seen, post_count, status="complete", objective_complete=True)
                 sys.exit(0)
 
         except KeyboardInterrupt:
