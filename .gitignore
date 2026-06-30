@@ -1,6 +1,7 @@
 venv/
 .env
 drafts.txt
+seen.json
 *.pyc
 __pycache__/
 *.egg-info/
