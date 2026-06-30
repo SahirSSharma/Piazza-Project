@@ -1,4 +1,14 @@
 import os, re, sys, json, html, getpass
+from pathlib import Path
+
+# Load .env from project root so credentials never need to be set manually
+_env = Path(__file__).parent / ".env"
+if _env.exists():
+    for _line in _env.read_text().splitlines():
+        if _line.strip() and not _line.startswith("#") and "=" in _line:
+            _k, _v = _line.split("=", 1)
+            os.environ.setdefault(_k.strip(), _v.strip())
+
 import anthropic
 from piazza_api import Piazza
 
