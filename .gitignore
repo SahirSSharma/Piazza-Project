@@ -2,6 +2,8 @@ venv/
 .env
 drafts.txt
 seen.json
+chem_seen.json
+chem_content_count.json
 *.pyc
 __pycache__/
 *.egg-info/

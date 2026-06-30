@@ -26,6 +26,11 @@ POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL", "120"))
 GATE_MODEL    = "claude-haiku-4-5"
 CONTENT_MODEL = "claude-sonnet-4-6"
 
+# Stop automatically after this many content answers are posted.
+# Per the CHEM 11 syllabus: 10 substantial contributions = all 40 Piazza points.
+CONTENT_LIMIT      = int(os.environ.get("CHEM_CONTENT_LIMIT", "10"))
+CONTENT_COUNT_FILE = os.environ.get("CHEM_COUNT_FILE", "chem_content_count.json")
+
 # ─── STEP 2: The gate ────────────────────────────────────────────────────────
 # Classifies each question. CHEM 11-specific twist (from syllabus page 4):
 #   - "content" questions are SUBSTANTIAL contributions → bot answers them
@@ -100,6 +105,14 @@ def load_seen():
 
 def save_seen(seen):
     Path(SEEN_FILE).write_text(json.dumps(sorted(seen)))
+
+def load_content_count():
+    """Load the number of content answers posted so far (persists across restarts)."""
+    p = Path(CONTENT_COUNT_FILE)
+    return json.loads(p.read_text()) if p.exists() else 0
+
+def save_content_count(n):
+    Path(CONTENT_COUNT_FILE).write_text(json.dumps(n))
 
 def strip_html(raw):
     return html.unescape(re.sub(r"<[^>]+>", " ", raw or "")).strip()
@@ -199,7 +212,7 @@ def send_confirmation(nr, question, answer, category, post_type):
 
 # ─── STEP 7: Scan loop ───────────────────────────────────────────────────────
 
-def scan_once(network, client, syllabus, seen):
+def scan_once(network, client, syllabus, seen, content_count):
     """
     Single scan pass.
 
@@ -211,8 +224,13 @@ def scan_once(network, client, syllabus, seen):
       4b. If "content"  → call Sonnet to generate chemistry answer → post
       4c. If "exam"     → skip (academic integrity)
       4d. Otherwise     → skip
+
+    Returns (total_posted, content_posted) so the caller can track the
+    content-answer limit independently of syllabus answers.
     """
-    posted = 0
+    total_posted   = 0
+    content_posted = 0
+
     for post in network.iter_all_posts(limit=POLL_LIMIT):
         nr = post.get("nr", "?")
         if nr in seen:
@@ -231,17 +249,21 @@ def scan_once(network, client, syllabus, seen):
         cat = r.get("category", "skip")
         print(f"  @{nr} [{cat}] {q[:65].replace(chr(10), ' ')}")
 
-        answer = None
+        answer     = None
+        is_content = False
 
         if cat == "syllabus" and r.get("answer"):
-            # Gate already generated a syllabus-grounded answer
             answer = r["answer"]
 
         elif cat == "content":
-            # Route to Sonnet for chemistry knowledge answer
+            # Check limit before making the expensive Sonnet call
+            if content_count + content_posted >= CONTENT_LIMIT:
+                print(f"    -> content limit ({CONTENT_LIMIT}) reached — skipping")
+                continue
             print("    -> chemistry question — generating answer...")
             try:
-                answer = answer_chemistry(client, q)
+                answer     = answer_chemistry(client, q)
+                is_content = True
             except Exception as e:
                 print(f"    ✗ content answer failed: {e}")
 
@@ -249,18 +271,19 @@ def scan_once(network, client, syllabus, seen):
             print("    -> appears to be exam question — skipping (academic integrity)")
         elif cat == "not_found":
             print("    -> not in syllabus, skipping")
-        # else: skip (noise)
 
         if answer:
             try:
                 ptype = post_answer(network, post, answer)
-                posted += 1
+                total_posted += 1
+                if is_content:
+                    content_posted += 1
                 print(f"    ✓ posted ({ptype}): {answer[:100]}")
                 send_confirmation(nr, q, answer, cat, ptype)
             except Exception as e:
                 print(f"    ✗ post failed: {e}")
 
-    return posted
+    return total_posted, content_posted
 
 
 # ─── MAIN ────────────────────────────────────────────────────────────────────
@@ -281,18 +304,36 @@ def main():
     except Exception as e:
         sys.exit(f"Piazza login failed: {e}")
 
-    network = p.network(os.environ["CHEM_PIAZZA_NETWORK"])
-    seen    = load_seen()
+    network       = p.network(os.environ["CHEM_PIAZZA_NETWORK"])
+    seen          = load_seen()
+    content_count = load_content_count()
 
-    print(f"CHEM 11 bot connected. Polling every {POLL_INTERVAL}s. Ctrl+C to stop.\n")
+    if content_count >= CONTENT_LIMIT:
+        print(f"Content post limit already reached ({content_count}/{CONTENT_LIMIT}). Nothing to do.")
+        sys.exit(0)
+
+    print(f"CHEM 11 bot connected. Polling every {POLL_INTERVAL}s.")
+    print(f"Content answers posted: {content_count}/{CONTENT_LIMIT}. Ctrl+C to stop.\n")
 
     while True:
         ts = time.strftime("%Y-%m-%d %H:%M:%S")
-        print(f"[{ts}] Scanning CHEM 11...")
+        print(f"[{ts}] Scanning CHEM 11... (content: {content_count}/{CONTENT_LIMIT})")
         try:
-            n = scan_once(network, client, syllabus, seen)
+            total, new_content = scan_once(network, client, syllabus, seen, content_count)
             save_seen(seen)
-            print(f"  → {n} posted." if n else "  → Nothing new.")
+            content_count += new_content
+            save_content_count(content_count)
+            if total:
+                print(f"  → {total} posted ({new_content} content).")
+            else:
+                print("  → Nothing new.")
+
+            # Stop once the Piazza participation goal is met
+            if content_count >= CONTENT_LIMIT:
+                print(f"\nObjective complete: {content_count} content answers posted.")
+                print("All 40 Piazza participation points secured. Bot shutting down.")
+                sys.exit(0)
+
         except KeyboardInterrupt:
             raise
         except Exception as e:
