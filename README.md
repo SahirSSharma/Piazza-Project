@@ -1,6 +1,8 @@
-# COGS 9 Piazza Bot
+# Piazza Syllabus Bot
 
-An automated teaching assistant that monitors the COGS 9 Piazza forum and instantly answers logistics and syllabus questions — freeing instructors and TAs from repetitive FAQ-style posts.
+A general-purpose automated teaching assistant that monitors any Piazza course forum and instantly answers logistics and syllabus questions — freeing instructors and TAs from repetitive FAQ-style posts.
+
+Works with any course: point it at a Piazza network ID and a plain-text syllabus and it's ready to go. Currently configured for COGS 9 — Intro to Data Science, Summer 2026, UCSD (Instructor: Kyle Shannon).
 
 Deployed 24/7 on Railway (cloud). Built with Python, Claude Haiku 4.5, and the unofficial `piazza_api` library.
 
@@ -17,7 +19,7 @@ The bot polls the class Piazza every 2 minutes. When it finds a new unanswered q
 | `not_found` — logistics question not covered by the syllabus | Skip — leave for instructor/TAs |
 | `skip` — greeting or noise | Ignore |
 
-The bot **only ever answers logistics questions** (grading policies, deadlines, late policy, etc.) and **never engages with course content**. It is grounded exclusively in `syllabus.txt` — it cannot invent information.
+The bot **only ever answers logistics questions** (grading policies, deadlines, late policy, etc.) and **never engages with course content**. It is grounded exclusively in the provided `syllabus.txt` — it cannot invent information.
 
 ---
 
@@ -74,13 +76,14 @@ pip install -r requirements.txt
 
 # 3. Create a .env file (never committed to git)
 ANTHROPIC_API_KEY=sk-ant-...
-PIAZZA_EMAIL=your@email.com
+PIAZZA_EMAIL=your@email.com           # bot's Piazza account
 PIAZZA_PASSWORD=yourpassword
-PIAZZA_NETWORK=<network_id_from_piazza_url>
+PIAZZA_NETWORK=<network_id_from_piazza_url>  # e.g. mqx5ejxouo32ix
 NOTIFY_EMAIL=your@gmail.com
 GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx
 
-# 4. Add the course syllabus as plain text
+# 4. Add your course syllabus as plain text
+#    This is the bot's only knowledge source — paste in any course syllabus
 cp /path/to/syllabus.txt syllabus.txt
 
 # 5. Test the gate classifier offline (no Piazza connection needed)
@@ -89,6 +92,8 @@ python test_gate.py
 # 6. Run the bot
 python bot.py
 ```
+
+To switch courses: update `PIAZZA_NETWORK` in `.env` and replace `syllabus.txt`. No code changes required.
 
 ---
 
@@ -128,11 +133,10 @@ The API is only called when there is a new unanswered post. Polling itself is fr
 
 ---
 
-## Updating the syllabus
+## Switching courses
 
-Edit `syllabus.txt` and push to GitHub. Railway auto-redeploys and the bot picks up the new syllabus on its next startup.
+Update two things and push:
+1. Set `PIAZZA_NETWORK` to the new class's network ID (found in the Piazza URL)
+2. Replace `syllabus.txt` with the new course syllabus (plain text)
 
----
-
-Built for COGS 9 — Intro to Data Science, Summer 2026, UCSD.
-Instructor: Kyle Shannon.
+Railway auto-redeploys and the bot picks up the new configuration on its next startup. No code changes required.
