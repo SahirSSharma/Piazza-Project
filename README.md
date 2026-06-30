@@ -60,6 +60,7 @@ Piazza forum
 | `test_gate.py` | Offline gate classifier eval — run this before deploying to verify accuracy |
 | `dump_piazza.py` | Read-only admin tool — dumps all posts to verify Piazza connectivity (never writes) |
 | `publish.py` | Manual override — post a specific answer from the command line |
+| `.env_template` | Template for your `.env` file — copy to `.env` and fill in values |
 | `Procfile` | Railway deployment config |
 | `requirements.txt` | Python dependencies (`anthropic`, `piazza-api`) |
 
@@ -74,13 +75,9 @@ python3 -m venv venv && source venv/bin/activate
 # 2. Install dependencies
 pip install -r requirements.txt
 
-# 3. Create a .env file (never committed to git)
-ANTHROPIC_API_KEY=sk-ant-...
-PIAZZA_EMAIL=your@email.com           # bot's Piazza account
-PIAZZA_PASSWORD=yourpassword
-PIAZZA_NETWORK=<network_id_from_piazza_url>  # e.g. mqx5ejxouo32ix
-NOTIFY_EMAIL=your@gmail.com
-GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx
+# 3. Create your .env from the template (never committed to git)
+cp .env_template .env
+# Then open .env and fill in your values
 
 # 4. Add your course syllabus as plain text
 #    This is the bot's only knowledge source — paste in any course syllabus
