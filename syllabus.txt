@@ -1,36 +1,119 @@
-CHEM 11 SYLLABUS — Section A — Summer Session 1, 2026
-Instructor: Dr. Dontarie Stallings
+COGS 9 — Introduction to Data Science
+Summer 2026 | Instructor: Kyle Shannon
+Course Website: https://kshannon-ucsd.github.io/cogs9/
+Piazza: https://piazza.com/ucsd/summer2026/cogs9_s126_a00/home
+Gradescope: https://www.gradescope.com/courses/1332191
 
-EXAMS (all synchronous via Canvas, NO make-ups, OPEN-BOOK & OPEN-NOTE, individual, no internet outside Canvas):
-- Exam 1: Tuesday, July 14, 8:00a-9:20a PDT.
-- Exam 2: Tuesday, July 28, 8:00a-9:20a PDT.
-- Final Exam: Saturday, August 1, 8:00a-10:59a PDT (two hours fifty minutes, open-ended).
-Exam content is announced via Canvas; no explicit study guides are provided.
+========================================
+COURSE MATERIALS
+========================================
+- There is NO textbook.
+- All course materials are provided through the course website.
+- Reading quizzes are taken through Gradescope.
+- Assignments and the final are submitted through Gradescope.
 
-OFFICE HOURS: Tuesdays & Thursdays 8:00a-9:30a, remote via Zoom, password CHEM11. Contact Dr. Stallings via Canvas email; replies within 24h on weekdays.
+========================================
+COURSE OBJECTIVES
+========================================
+- Comprehend core data science concepts and examine their applications.
+- Discuss data privacy and ethical concerns with real-world examples.
+- Identify data science questions and the appropriate analytic approach.
+- Communicate data-related topics and projects.
+- Demonstrate how to think critically about data ("data-first" mindset).
+- Describe potential pitfalls of data analyses, how to identify them, and how to avoid them.
 
-LECTURE & DISCUSSION: Lecture = Canvas videos, remote asynchronous. Discussion (Zoom, T & R): A01 11:00a-11:50a; A02 Noon-12:50p.
+========================================
+GRADING & ATTENDANCE
+========================================
 
-GRADING (1000 pts): Daily Work 250 (25%), Exam 1 250 (25%), Exam 2 250 (25%), Final 250 (25%).
+Grading Breakdown (200 Total Points):
+- 3 Assignments:                          30% — 60 points (20 each)
+- 5 Reading Quizzes (lowest dropped):     20% — 40 points (10 each)
+- Final Project Part 1:                   10% — 20 points
+- Final Project Part 2:                   20% — 40 points
+- Final Project Video:                    20% — 40 points
 
-DAILY WORK / BUCKET POINTS: 336 available; you need 235 for the full 25%. Mastering Chemistry 9x20=180; Weekly Canvas Quiz 5x12=60; Piazza 10x4=40; Discussion Sessions 9x4=36; Exam Wrappers 2x10=20.
+- There is NO final exam. Only a final group project.
+- Letter grades use the standard grading scale. Grades are NOT rounded up.
+- Grades are released on Gradescope often a week after the submission date, typically sooner.
 
-PIAZZA CREDIT: up to 40 pts; 10 substantial contributions earns all 40. A substantial contribution is asking or answering CONTENT questions. Syllabus questions or simply agreeing do NOT count.
+Regrade Policy:
+- You have 72 hours to request a regrade.
+- Initiate the regrade through Gradescope (for group projects, submit one regrade after team consensus).
+- Provide evidence for why your answer is correct (reference to lecture, readings, or office hours).
+- We will respond within 48 hours with our final decision.
+- When we regrade, we re-evaluate the entire assignment — your grade can go up, stay the same, or go down.
 
-GRADE IMPROVEMENT PLAN: the final has three sections; sections 1 and 2 cover Exam 1 and Exam 2 material. If you score higher on a final section than the matching exam, that higher percentage replaces the original. You must have attempted the original exam (or have an excused absence) to be eligible.
+Lecture Attendance:
+- Lectures are PRE-RECORDED and posted on the course website and via UCSD podcast.
+- You can watch on your own schedule.
+- Office hours and the Project Studio are LIVE on Zoom.
 
-MASTERING CHEMISTRY (HOMEWORK): 9 assignments, 20 pts each, due 8:00p on the due date. Four attempts per problem except multiple-choice/multiple-select/sorting/ranking. Due: Set 1 (Ch1) Jul 3; Set 2 (Ch2) Jul 7; Set 3 (Ch3) Jul 9; Set 4 (Ch4) Jul 11; Set 5 (Ch5) Jul 15; Set 6 (Ch6) Jul 17; Set 7 (Ch7) Jul 20; Set 8 (Ch8) Jul 24; Set 9 (Ch9) Jul 30.
+Project Studio (Discussion Sections):
+- Discussion sections run as a live Project Studio on Zoom.
+- Teams are formed in Week 1.
+- Studios run Weeks 2 through 5, with five sessions each week.
+- Drop into whichever session fits your schedule.
+- YOUR GROUP MUST ATTEND AT LEAST ONE STUDIO PER WEEK.
+- Check in with your team name when you join; staff will mark your group present.
+- For each week your group does not attend, you lose up to 2% off your final grade.
 
-WEEKLY CANVAS QUIZZES: 5 assignments, 12 pts each; access 5:00a-11:00p PDT. WA1 (Ch1-2) Jul 3; WA2 (Ch3-5) Jul 10; WA3 (Ch6-7) Jul 17; WA4 (Ch7-8) Jul 24; WA5 (Ch9) Jul 30.
+Late Policy:
+- Reading quizzes: must be submitted on time; NO late submissions accepted.
+- Assignments: a 12-hour grace period after the deadline (no penalty). After that, late work is NOT accepted.
+- Final project (all parts): must be submitted on time. Late work not accepted except for documented emergencies outside your control — email course staff BEFORE the deadline.
 
-DISCUSSION SESSIONS: 4 pts full attendance+participation; 2 pts limited; 0 none. No make-ups.
+Joining the Class Late:
+- You must email Kyle and your TA before the end of Week 2.
+- Submit any missed Week 1 assignments/quizzes by 11:59pm Friday of Week 2.
+- Work from later weeks is NOT eligible for catch-up.
 
-MISSING ASSIGNMENTS: address missing homework/weekly-assessment scores via Canvas email within 48 hours of scores being posted.
+========================================
+COURSE ASSIGNMENTS & TOPICS
+========================================
 
-GRADING SCALE: A+ 100; A 93-100; A- 90-93; B+ 87-90; B 83-87; B- 80-83; C+ 77-80; C 73-77; C- 70-73; D 60-70; F below 60. The scale may be lowered but never raised.
+Assignments:
+- 3 assignments total, each worth 20 points (60 points total, 30% of grade).
+- Focus on applying concepts from lectures and readings.
+- Due dates are on the home page course calendar.
+- See the assignments tab for individual instructions.
 
-MISSED EXAMS: email Dr. Stallings via Canvas ASAP; illness requires medical documentation to the Dean of Students.
+Final Project:
+- A two-part report and video on how you would handle a data science project.
+- Includes: data science question, example data summary, data wrangling plan, analysis description.
+- You WILL NOT have to actually perform the analysis — only write about how you would do it.
+- Due at end of session (Week 5).
+- See the final project tab for full instructions.
 
-COURSE TEXT: Fundamentals of General, Organic, and Biological Chemistry, 8th ed (McMurry, Ballantine, Hoeger, Peterson). Also: Mastering Chemistry, scientific calculator, internet access.
+Exam:
+- There is NO exam in COGS 9.
+- In its place, there is a substantial final group project due at the end of the session (Week 5).
 
-ACCOMMODATIONS: Office for Students with Disabilities 858.534.4382; inform Dr. Stallings and chemistry liaison Hanna Foley (chemosd@ucsd.edu) within the first week. WORKLOAD: expect 6-9 hours/week outside class.
+Readings & Quizzes:
+- 5 quizzes; each covers one reading set (Quiz 1 covers R1, etc.).
+- Each quiz: 10 multiple choice questions, worth 10 points.
+- Released all at once at the start of the term; complete at your own pace by each due date.
+- One attempt only.
+- Open notes, but you must work ALONE.
+- Taken and submitted through Gradescope.
+- Lowest quiz score is DROPPED when calculating your final grade.
+- Late reading quizzes are NOT accepted.
+
+Planned Readings:
+- R1: Donoho D, 50 Years of Data Science
+- R2: Loukides M, Mason H & Patil DJ, Ethics and Data Science
+- R2: Privacy & Security Myths & Fallacies of "PII", Narayanan and Shmatikov
+- R3: Wickham H, Tidy Data (Sections 1-3)
+- R3: Woo K & Broman K, Data in Spreadsheets
+- R4: Wickham H, Cook Di, Hoffman H & Buja A, Graphical Inference for Infovis
+- R4: Peck E, Ayuso S & El-Etr O, Data Is Personal: Attitudes and Perceptions of Data Visualization in Rural Pennsylvania
+- R5: Diakopoulos N, Accountability in Algorithmic Decision Making
+- R5: Angwin J, Larson J, Mattu S & Kirchner L, Machine Bias
+
+========================================
+POLICIES & RESOURCES
+========================================
+- Academic Integrity & AI: academic honesty and using AI tools. See /cogs9/syllabus/academic-integrity
+- Conduct & Community: respect and campus resources. See /cogs9/syllabus/conduct
+- Accessibility: accommodations and the OSD. See /cogs9/syllabus/accessibility
+- Getting Help: where to take your questions. See /cogs9/syllabus/getting-help
