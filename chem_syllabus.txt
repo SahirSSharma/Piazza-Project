@@ -1,0 +1,173 @@
+CHEM 11 — Introduction to General Chemistry (for Non-Science Majors)
+Summer 2026 | Section A | Instructor: Dr. Dontarie Stallings
+UCSD | Remote/Asynchronous Lecture
+
+==============================================================
+CONTACT & OFFICE HOURS
+==============================================================
+Instructor: Dr. Dontarie Stallings
+Email: Via Canvas only (responds within 24 hours on work days)
+Office Hours: Tuesdays & Thursdays | 8:00a – 9:30a | Remote Synchronous Zoom
+Zoom Password: CHEM11
+
+Discussions (synchronous via Zoom):
+  A01: Tuesdays & Thursdays | 11:00a – 11:50a
+  A02: Tuesdays & Thursdays | Noon – 12:50p
+
+==============================================================
+COURSE DESCRIPTION
+==============================================================
+Introduction to the material world of atoms and small inorganic molecules.
+Intended for non-science majors.
+Students may NOT receive credit for both CHEM 4 and CHEM 11.
+Prerequisites: None.
+
+Textbook: Fundamentals of General, Organic, and Biological Chemistry, 8th edition
+          by McMurry, Ballantine, Hoeger, and Peterson
+Additional: Mastering Chemistry (online homework), scientific calculator, internet access
+
+==============================================================
+GRADING BREAKDOWN
+==============================================================
+Daily Work (Bucket Points): 25% — 250 points
+Exam 1:                     25% — 250 points
+Exam 2:                     25% — 250 points
+Final Exam:                 25% — 250 points
+TOTAL:                     100% — 1000 points
+
+Grading Scale:
+  A+: 100%
+  A:  93% – 100%
+  A-: 90% – 93%
+  B+: 87% – 90%
+  B:  83% – 87%
+  B-: 80% – 83%
+  C+: 77% – 80%
+  C:  73% – 77%
+  C-: 70% – 73%
+  D:  60% – 70%
+  F:  Less than 60%
+Note: Dr. Stallings will never raise the grading scale; may lower it at the end of the quarter.
+
+==============================================================
+DAILY WORK — BUCKET POINTS (250 points needed for full 25%)
+==============================================================
+You need 235 points to earn the full 25%.
+Total points available: 336 (so there is buffer — you don't need everything).
+
+Assignment Type       | # Assignments | Points Each | Total Available
+----------------------|---------------|-------------|----------------
+Mastering Chemistry   |       9       |     20      |      180
+Weekly Canvas Quiz    |       5       |     12      |       60
+Piazza Contributions  |      10       |      4      |       40
+Discussion Sessions   |       9       |      4      |       36
+Exam Wrappers         |       2       |     10      |       20
+TOTAL POSSIBLE        |               |             |      336
+
+--- Mastering Chemistry (Homework) ---
+9 assignments, 20 points each = 180 total points.
+4 attempts allowed per problem; 100% credit for correct response on any attempt
+EXCEPT for multiple-choice, multiple-select, sorting, and ranking problems.
+Due at 8:00p on the date indicated (see schedule below).
+Extensions only for excused absences or disability accommodations (discuss with Dr. Stallings).
+Access via Canvas → MasteringChemistry link.
+
+HW Set | Chapter Coverage | Due Date
+-------|-----------------|----------
+Intro  | Practice (0 pts)| No deadline
+1      | Chapter 1        | Friday, July 3
+2      | Chapter 2        | Tuesday, July 7
+3      | Chapter 3        | Thursday, July 9
+4      | Chapter 4        | Saturday, July 11
+5      | Chapter 5        | Wednesday, July 15
+6      | Chapter 6        | Friday, July 17
+7      | Chapter 7        | Monday, July 20
+8      | Chapter 8        | Friday, July 24
+9      | Chapter 9        | Thursday, July 30
+
+--- Weekly Canvas Quiz ---
+5 quizzes, 12 points each = 60 total points.
+Available 5:00a – 11:00p PDT on due date.
+Extensions only for excused absences or disability accommodations (discuss BEFORE the quiz).
+
+Quiz # | Chapters Covered  | Date
+-------|-------------------|------------------
+1      | CH 1 & CH 2       | Friday, July 3
+2      | CH 3, CH 4, CH 5  | Friday, July 10
+3      | CH 6 & CH 7       | Friday, July 17
+4      | CH 7 & CH 8       | Friday, July 24
+5      | CH 9              | Thursday, July 30
+
+--- Piazza Contributions ---
+Up to 40 daily work points based on SUBSTANTIAL contributions.
+10 substantial contributions = all 40 points (4 points each).
+A substantial contribution = asking OR answering CONTENT questions.
+NOT substantial: asking about the syllabus, or simply agreeing with a comment.
+
+--- Discussion Sessions ---
+9 sessions, 4 points each = 36 total points.
+4 points = full attendance + participation
+2 points = attendance with limited participation
+0 points = absent (no make-up opportunities)
+
+--- Exam Wrappers ---
+2 assignments (after Exam 1 and Exam 2 are returned), 10 points each = 20 total.
+Posted on Canvas under Quizzes after exams are graded.
+
+==============================================================
+EXAMS
+==============================================================
+Exam 1:     Tuesday, July 14th  | 8:00a – 9:20a (PDT) — via Canvas
+Exam 2:     Tuesday, July 28th  | 8:00a – 9:20a (PDT) — via Canvas
+Final Exam: Saturday, August 1st | 8:00a – 10:59a (PDT) — via Canvas
+
+ALL EXAMS ARE OPEN-BOOK AND OPEN-NOTE.
+Exams must be worked individually. Working with others or using the internet
+outside of Canvas is strictly prohibited.
+No make-up exams. Contact Dr. Stallings via Canvas immediately if you miss an exam.
+
+--- Grade Improvement Plan ---
+The final exam has three sections:
+  Section 1 covers Exam 1 material
+  Section 2 covers Exam 2 material
+  Section 3 covers material after Exam 2
+If your final exam section score is higher than your original exam score,
+the higher percentage replaces the original in grade calculation.
+You MUST have attempted the original exam (or have an excused absence) to be eligible.
+
+--- Missing Assignments ---
+Missing homework and weekly assessment scores must be reported via Canvas email
+to Dr. Stallings within 48 hours of scores being posted to Canvas.
+
+==============================================================
+LECTURE SCHEDULE (Tentative)
+==============================================================
+Week of June 30: CH 1 (Matter & Measurements), CH 2 (Atoms & the Periodic Table)
+Week of July 7:  CH 3 (Ionic Compounds), CH 4 (Molecular Compounds),
+                 CH 5 (Classification & Balancing Chemical Reactions)
+Week of July 14: EXAM 1 (Tuesday), CH 6 (Mole & Mass Relationships),
+                 CH 7 (Energy, Rates & Equilibrium)
+Week of July 21: CH 7 (Energy, Rates & Equilibrium), CH 8 (Gases, Liquids & Solids)
+Week of July 28: EXAM 2 (Tuesday), CH 9 (Solutions)
+August 1:        FINAL EXAM (Saturday)
+
+==============================================================
+COURSE POLICIES
+==============================================================
+Collaboration: Studying with classmates is encouraged. Collaboration on homework is
+acceptable. Discussion of weekly assessments and exams before grades are released
+is NOT appropriate. All submitted work must be prepared independently.
+
+Late Assignments: Extensions awarded only for excused absences or disability
+accommodations — discuss with Dr. Stallings in advance.
+
+Missed Exams: Email Dr. Stallings via Canvas immediately. University-approved absences
+(illness, athletics, religious observance, personal emergency) may allow alternate
+arrangements. Documentation required through Office of the Dean of Students.
+
+Academic Integrity: Lying, cheating, or dishonesty will be reported to the Academic
+Integrity Office. Sanctions include F in the class, suspension, or dismissal.
+
+Accommodations: Contact Office for Students with Disabilities (858.534.4382 or osd.ucsd.edu)
+AS SOON AS POSSIBLE. Email Dr. Stallings and chemistry liaison Hanna Foley
+(chemosd@ucsd.edu) within the first week.
