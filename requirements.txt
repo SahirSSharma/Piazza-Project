@@ -1,2 +1,4 @@
 anthropic==0.113.0
 piazza-api==0.15.0
+flask
+flask-cors
