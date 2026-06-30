@@ -182,14 +182,17 @@ def post_answer(network, post, answer):
         network.create_followup(post, answer)
         return "followup"
 
-def send_confirmation(nr, question, answer, category, post_type):
+def send_confirmation(nr, question, answer, category, post_type, post_count, limit):
     sender   = os.environ.get("NOTIFY_EMAIL", "")
     app_pass = os.environ.get("GMAIL_APP_PASSWORD", "")
     if not sender or not app_pass:
         return
-    subject = f"[CHEM11 Bot] Posted @{nr} [{category}] — {question[:50].replace(chr(10), ' ')}"
+    progress = f"{post_count}/{limit}"
+    done_msg = " — OBJECTIVE COMPLETE" if post_count >= limit else ""
+    subject = f"[CHEM11 Bot] {progress} Posted @{nr} [{category}]{done_msg}"
     body = (
         f"CHEM 11 bot posted an answer on Piazza.\n\n"
+        f"Progress: {progress} answers toward Piazza goal{done_msg}\n\n"
         f"Post:     @{nr}\n"
         f"Category: {category}\n"
         f"Type:     {post_type}\n\n"
@@ -212,7 +215,7 @@ def send_confirmation(nr, question, answer, category, post_type):
 
 # ─── STEP 7: Scan loop ───────────────────────────────────────────────────────
 
-def scan_once(network, client, syllabus, seen, content_count):
+def scan_once(network, client, syllabus, seen, post_count):
     """
     Single scan pass.
 
@@ -225,11 +228,10 @@ def scan_once(network, client, syllabus, seen, content_count):
       4c. If "exam"     → skip (academic integrity)
       4d. Otherwise     → skip
 
-    Returns (total_posted, content_posted) so the caller can track the
-    content-answer limit independently of syllabus answers.
+    Counts ALL posted answers (syllabus + content) toward the 10-post limit.
+    Returns new_posts count for this scan.
     """
-    total_posted   = 0
-    content_posted = 0
+    new_posts = 0
 
     for post in network.iter_all_posts(limit=POLL_LIMIT):
         nr = post.get("nr", "?")
@@ -241,6 +243,11 @@ def scan_once(network, client, syllabus, seen, content_count):
         if not needs_answer(post):
             continue
 
+        # Stop scanning if limit already reached mid-scan
+        if post_count + new_posts >= CONTENT_LIMIT:
+            print(f"    -> post limit ({CONTENT_LIMIT}) reached — stopping scan")
+            break
+
         q = question_text_of(post)
         if not q:
             continue
@@ -249,21 +256,15 @@ def scan_once(network, client, syllabus, seen, content_count):
         cat = r.get("category", "skip")
         print(f"  @{nr} [{cat}] {q[:65].replace(chr(10), ' ')}")
 
-        answer     = None
-        is_content = False
+        answer = None
 
         if cat == "syllabus" and r.get("answer"):
             answer = r["answer"]
 
         elif cat == "content":
-            # Check limit before making the expensive Sonnet call
-            if content_count + content_posted >= CONTENT_LIMIT:
-                print(f"    -> content limit ({CONTENT_LIMIT}) reached — skipping")
-                continue
             print("    -> chemistry question — generating answer...")
             try:
-                answer     = answer_chemistry(client, q)
-                is_content = True
+                answer = answer_chemistry(client, q)
             except Exception as e:
                 print(f"    ✗ content answer failed: {e}")
 
@@ -275,15 +276,14 @@ def scan_once(network, client, syllabus, seen, content_count):
         if answer:
             try:
                 ptype = post_answer(network, post, answer)
-                total_posted += 1
-                if is_content:
-                    content_posted += 1
-                print(f"    ✓ posted ({ptype}): {answer[:100]}")
-                send_confirmation(nr, q, answer, cat, ptype)
+                new_posts += 1
+                current = post_count + new_posts
+                print(f"    ✓ posted ({ptype}) [{current}/{CONTENT_LIMIT}]: {answer[:100]}")
+                send_confirmation(nr, q, answer, cat, ptype, current, CONTENT_LIMIT)
             except Exception as e:
                 print(f"    ✗ post failed: {e}")
 
-    return total_posted, content_posted
+    return new_posts
 
 
 # ─── MAIN ────────────────────────────────────────────────────────────────────
@@ -306,33 +306,30 @@ def main():
     except Exception as e:
         sys.exit(f"Piazza login failed: {e}")
 
-    network       = p.network(os.environ["CHEM_PIAZZA_NETWORK"])
-    seen          = load_seen()
-    content_count = load_content_count()
+    network    = p.network(os.environ["CHEM_PIAZZA_NETWORK"])
+    seen       = load_seen()
+    post_count = load_content_count()
 
-    if content_count >= CONTENT_LIMIT:
-        print(f"Content post limit already reached ({content_count}/{CONTENT_LIMIT}). Nothing to do.")
+    if post_count >= CONTENT_LIMIT:
+        print(f"Post limit already reached ({post_count}/{CONTENT_LIMIT}). Nothing to do.")
         sys.exit(0)
 
     print(f"CHEM 11 bot connected. Polling every {POLL_INTERVAL}s.")
-    print(f"Content answers posted: {content_count}/{CONTENT_LIMIT}. Ctrl+C to stop.\n")
+    print(f"Answers posted: {post_count}/{CONTENT_LIMIT}. Ctrl+C to stop.\n")
 
     while True:
         ts = time.strftime("%Y-%m-%d %H:%M:%S")
-        print(f"[{ts}] Scanning CHEM 11... (content: {content_count}/{CONTENT_LIMIT})")
+        print(f"[{ts}] Scanning CHEM 11... ({post_count}/{CONTENT_LIMIT} answers posted)")
         try:
-            total, new_content = scan_once(network, client, syllabus, seen, content_count)
+            new_posts = scan_once(network, client, syllabus, seen, post_count)
             save_seen(seen)
-            content_count += new_content
-            save_content_count(content_count)
-            if total:
-                print(f"  → {total} posted ({new_content} content).")
-            else:
-                print("  → Nothing new.")
+            post_count += new_posts
+            save_content_count(post_count)
+            print(f"  → {new_posts} posted." if new_posts else "  → Nothing new.")
 
             # Stop once the Piazza participation goal is met
-            if content_count >= CONTENT_LIMIT:
-                print(f"\nObjective complete: {content_count} content answers posted.")
+            if post_count >= CONTENT_LIMIT:
+                print(f"\nObjective complete: {post_count}/{CONTENT_LIMIT} answers posted.")
                 print("All 40 Piazza participation points secured. Bot shutting down.")
                 sys.exit(0)
 
