@@ -1,0 +1,2 @@
+- [Repro & credentials topology](project_repro-and-creds.md) — what blocks end-to-end runs; test_gate.py is the creds-free gate harness; verified piazza-api 0.15.0 signatures
+- [Gate JSON parsing contract](project_gate-json-parsing.md) — malformed model output must degrade to "skip", never crash; both json.loads calls must be guarded

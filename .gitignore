@@ -1,0 +1,7 @@
+venv/
+.env
+drafts.txt
+*.pyc
+__pycache__/
+*.egg-info/
+.DS_Store
