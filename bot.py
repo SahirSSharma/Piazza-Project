@@ -225,10 +225,13 @@ def scan_once(network, client, syllabus, seen):
 # ─── MAIN: startup and polling loop ───────────────────────────────────────────
 
 def main():
-    # Validate required credentials before doing anything
+    # Accept PIAZZA_NETWORK_COGS9 or PIAZZA_NETWORK (either naming works)
+    if os.environ.get("PIAZZA_NETWORK_COGS9") and not os.environ.get("PIAZZA_NETWORK"):
+        os.environ["PIAZZA_NETWORK"] = os.environ["PIAZZA_NETWORK_COGS9"]
+
     for var in ("ANTHROPIC_API_KEY", "PIAZZA_EMAIL", "PIAZZA_PASSWORD", "PIAZZA_NETWORK"):
         if not os.environ.get(var):
-            sys.exit(f"ERROR: {var} is not set.")
+            sys.exit(f"ERROR: {var} (or PIAZZA_NETWORK_COGS9) is not set.")
 
     syllabus = load_syllabus()
     client   = anthropic.Anthropic()

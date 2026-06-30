@@ -289,11 +289,13 @@ def scan_once(network, client, syllabus, seen, content_count):
 # ─── MAIN ────────────────────────────────────────────────────────────────────
 
 def main():
-    # CHEM_PIAZZA_NETWORK is separate from PIAZZA_NETWORK so both bots can
-    # coexist in the same .env without overwriting each other's network ID.
+    # Accept PIAZZA_NETWORK_CHEM11 or CHEM_PIAZZA_NETWORK (either naming works)
+    if os.environ.get("PIAZZA_NETWORK_CHEM11") and not os.environ.get("CHEM_PIAZZA_NETWORK"):
+        os.environ["CHEM_PIAZZA_NETWORK"] = os.environ["PIAZZA_NETWORK_CHEM11"]
+
     for var in ("ANTHROPIC_API_KEY", "PIAZZA_EMAIL", "PIAZZA_PASSWORD", "CHEM_PIAZZA_NETWORK"):
         if not os.environ.get(var):
-            sys.exit(f"ERROR: {var} is not set.")
+            sys.exit(f"ERROR: {var} (or PIAZZA_NETWORK_CHEM11) is not set.")
 
     syllabus = load_syllabus()
     client   = anthropic.Anthropic()
