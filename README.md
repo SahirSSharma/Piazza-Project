@@ -60,7 +60,7 @@ Piazza forum
 | `test_gate.py` | Offline gate classifier eval — run this before deploying to verify accuracy |
 | `dump_piazza.py` | Read-only admin tool — dumps all posts to verify Piazza connectivity (never writes) |
 | `publish.py` | Manual override — post a specific answer from the command line |
-| `Procfile` | Railway deployment config (`worker: python bot.py`) |
+| `Procfile` | Railway deployment config |
 | `requirements.txt` | Python dependencies (`anthropic`, `piazza-api`) |
 
 ---
