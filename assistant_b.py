@@ -15,20 +15,21 @@ from piazza_api import Piazza
 
 # ─── CONFIGURATION ────────────────────────────────────────────────────────────
 # Uses CHEM_* env vars so both bots can run simultaneously without interfering.
-SYLLABUS_PATH = os.environ.get("CHEM_SYLLABUS_PATH", "syllabus_b.txt")
-SEEN_FILE     = os.environ.get("CHEM_SEEN_FILE", "chem_seen.json")
-POLL_LIMIT    = 30
-POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL", "120"))
+BASE_DIR           = Path(__file__).parent
+SYLLABUS_PATH      = BASE_DIR / os.environ.get("CHEM_SYLLABUS_PATH", "syllabus_b.txt")
+SEEN_FILE          = BASE_DIR / os.environ.get("CHEM_SEEN_FILE", "chem_seen.json")
+POLL_LIMIT         = 30
+POLL_INTERVAL      = int(os.environ.get("POLL_INTERVAL", "120"))
 
 # Two-model pipeline:
 #   GATE_MODEL    — cheap Haiku classifier (routes every question)
 #   CONTENT_MODEL — Sonnet for chemistry answers (accuracy matters for a grade)
 GATE_MODEL    = "claude-haiku-4-5"
-CONTENT_MODEL = "claude-sonnet-4-6"
+CONTENT_MODEL = "claude-haiku-4-5"
 
 # Stop automatically after this many answers are posted.
 CONTENT_LIMIT      = int(os.environ.get("CHEM_CONTENT_LIMIT", "10"))
-CONTENT_COUNT_FILE = os.environ.get("CHEM_COUNT_FILE", "chem_content_count.json")
+CONTENT_COUNT_FILE = BASE_DIR / os.environ.get("CHEM_COUNT_FILE", "chem_content_count.json")
 
 _scan_count_b = 0
 _last_post_b = None   # dict or None
@@ -65,30 +66,26 @@ SYLLABUS:
 {syllabus}"""
 
 # ─── STEP 3: The chemistry answerer ──────────────────────────────────────────
-# Only called when the gate returns "content". Uses Sonnet for better accuracy
-# on science questions. Answers are written at intro-level (non-science major).
-CONTENT_SYSTEM = """You are a helpful and encouraging chemistry tutor for CHEM 11 (Introduction to General Chemistry for non-science majors) at UCSD.
+# Only called when the gate returns "content". Uses Haiku for fast, concise answers.
+CONTENT_SYSTEM = """You are answering a Piazza question for CHEM 11 (Introduction to General Chemistry for non-science majors) at UCSD. Textbook: Fundamentals of General, Organic, and Biological Chemistry, 8th ed. by McMurry et al. Topics: Matter & Measurements, Atoms & the Periodic Table, Ionic Compounds, Molecular Compounds, Chemical Reactions, Stoichiometry, Energy/Rates/Equilibrium, Gases/Liquids/Solids, Solutions.
 
-The course uses: Fundamentals of General, Organic, and Biological Chemistry, 8th ed. by McMurry, Ballantine, Hoeger, and Peterson.
+Answer at the scope of a first year college student. Keep your responses as if you were typing a quick message to a classmate between classes. The message should pass as a serious sounding real person, not an AI. Keep it mostly formal, polite, and straight to the point. Basically just answer it as briefly yet properly as possible.
 
-Topics covered:
-  CH 1: Matter & Measurements (units, significant figures, density)
-  CH 2: Atoms & the Periodic Table (atomic structure, electron configuration, periodic trends)
-  CH 3: Ionic Compounds (ions, formulas, nomenclature)
-  CH 4: Molecular Compounds (covalent bonds, Lewis structures, VSEPR, polarity)
-  CH 5: Classification & Balancing of Chemical Reactions
-  CH 6: Mole and Mass Relationships (molar mass, stoichiometry, limiting reagent)
-  CH 7: Energy, Rates & Equilibrium (thermodynamics, reaction rates, Le Chatelier's principle)
-  CH 8: Gases, Liquids & Solids (gas laws, intermolecular forces, phase changes)
-  CH 9: Solutions (concentration, solubility, colligative properties)
-
-Guidelines for your response:
-- Write for a non-science major — clear, friendly, and jargon-light.
-- For calculations: show every step explicitly.
-- For conceptual questions: give a brief analogy or real-world connection when helpful.
-- Keep answers focused: 2–4 sentences for concepts, step-by-step for problems.
-- Be encouraging and positive in tone.
-- Do NOT solve exam or quiz questions that appear to be in progress."""
+REQUIRED FORMAT — every rule below is mandatory:
+Do not use em dashes (—) or en dashes (–). Use a comma or period instead.
+Do not use semicolons (;). Split into separate sentences instead.
+Do not use bullet points, numbered lists, or any list formatting.
+Do not use bold, italics, headers, or any markdown.
+Do not open with a greeting of any kind (no Hi, Hello, Hey, Dear, etc.).
+Do not close with any follow-up, sign-off, or pleasantry (no "Hope this helps", "Let me know", "Feel free", "Any questions", "Good luck", etc.).
+Do not identify yourself as an AI or reference Claude, AI, or language models in any way.
+Do not open with a compliment on the question (no "Great question", "Good question", etc.).
+Do not use filler phrases like "Furthermore", "It is important to note", "In conclusion", or "In summary".
+Do not sound condescending or superior. You are a peer, not a teacher.
+Do not give advice, tips, or suggestions. Only answer what was directly asked.
+Do not use rhetorical questions to lead into your answer. Start with the answer itself.
+Write between 30 and 250 words.
+End your response with the last relevant word of your answer and nothing after it."""
 
 
 def load_syllabus():
@@ -151,20 +148,62 @@ def gate(client, syllabus, question):
         return {"category": "skip"}
 
 
-# ─── STEP 5: Chemistry answer call ───────────────────────────────────────────
+# ─── STEP 5: Answer quality checklist ────────────────────────────────────────
 
-def answer_chemistry(client, question):
+_CHECKLIST = [
+    (r"[—–]",                                                   "em/en dash found"),
+    (r";",                                                       "semicolon found"),
+    (r"(?m)^\s*[-•*]\s",                                        "bullet point found"),
+    (r"(?m)^\s*\d+\.\s",                                        "numbered list found"),
+    (r"\*\*|__|\*[^*\s]|_[^_\s]",                              "markdown formatting found"),
+    (r"(?i)^(hi|hello|hey|dear|greetings)[,!\s]",              "starts with greeting"),
+    (r"(?i)(hope this helps|let me know|feel free|any questions|good luck|don't hesitate)", "sign-off phrase found"),
+    (r"(?i)(as an ai|i'm an ai|language model|i'm claude|ai assistant)", "AI self-identification found"),
+    (r"(?i)(great question|excellent question|good question|that's a great)", "sycophantic opener found"),
+    (r"(?i)(furthermore|it is important to note|it's important to note|in conclusion|in summary)", "AI filler phrase found"),
+    (r"(?i)(you should|you need to|make sure you|remember to|always remember|don't forget|i recommend|i suggest|my advice|pro tip)", "advice/tip found"),
+]
+
+_MIN_WORDS = 30
+_MAX_WORDS = 250
+
+def _check_answer(text):
+    """Return list of violation strings. Empty list means the answer passes."""
+    failures = []
+    for pattern, msg in _CHECKLIST:
+        if re.search(pattern, text):
+            failures.append(msg)
+    words = len(text.split())
+    if words < _MIN_WORDS:
+        failures.append(f"too short ({words} words, min {_MIN_WORDS})")
+    if words > _MAX_WORDS:
+        failures.append(f"too long ({words} words, max {_MAX_WORDS})")
+    return failures
+
+
+# ─── STEP 6: Chemistry answer call ───────────────────────────────────────────
+
+def answer_chemistry(client, question, max_attempts=3):
     """
-    Generate a chemistry answer using Sonnet.
+    Generate a chemistry answer using Haiku.
     Only called after the gate confirms the question is course content (not an exam).
+    Retries up to max_attempts times if the answer fails the quality checklist.
     """
-    resp = client.messages.create(
-        model=CONTENT_MODEL,
-        max_tokens=600,
-        system=CONTENT_SYSTEM,
-        messages=[{"role": "user", "content": question}]
-    )
-    return "".join(b.text for b in resp.content if b.type == "text").strip()
+    answer = ""
+    for attempt in range(1, max_attempts + 1):
+        resp = client.messages.create(
+            model=CONTENT_MODEL,
+            max_tokens=400,
+            system=CONTENT_SYSTEM,
+            messages=[{"role": "user", "content": question}]
+        )
+        answer = "".join(b.text for b in resp.content if b.type == "text").strip()
+        violations = _check_answer(answer)
+        if not violations:
+            return answer
+        print(f"    [checklist] attempt {attempt}/{max_attempts} failed: {violations}")
+    print(f"    [checklist] all attempts exhausted — using last answer anyway")
+    return answer
 
 
 # ─── STEP 6: Post to Piazza ───────────────────────────────────────────────────
@@ -230,14 +269,14 @@ def write_status_b(seen, post_count, status="running", objective_complete=False)
             "poll_interval": POLL_INTERVAL,
             "last_post": _last_post_b,
         }
-        Path("assistant_b_status.json").write_text(json.dumps(data))
+        (BASE_DIR / "assistant_b_status.json").write_text(json.dumps(data))
     except Exception as e:
         print(f"  [status write error: {e}]")
 
 def append_activity_b(nr, question, category, answer):
     """Append one entry to activity_log.json (shared with Bot A). Max 100 entries."""
     try:
-        log_path = Path("activity_log.json")
+        log_path = BASE_DIR / "activity_log.json"
         try:
             entries = json.loads(log_path.read_text()) if log_path.exists() else []
             if not isinstance(entries, list):
@@ -258,6 +297,34 @@ def append_activity_b(nr, question, category, answer):
         log_path.write_text(json.dumps(entries))
     except Exception as e:
         print(f"  [activity log error: {e}]")
+
+def append_scan_log_b(nr, cid, question, category, gate_result, posted):
+    """Log every classified post to scan_log.json (shared with Bot A). Max 200 entries."""
+    try:
+        log_path = BASE_DIR / "scan_log.json"
+        try:
+            entries = json.loads(log_path.read_text()) if log_path.exists() else []
+            if not isinstance(entries, list):
+                entries = []
+        except Exception:
+            entries = []
+        entry = {
+            "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "bot": "B",
+            "course": "CHEM 11",
+            "nr": nr,
+            "cid": cid,
+            "question": question[:400],
+            "category": category,
+            "gate_answer": (gate_result.get("answer") or "")[:500],
+            "source": gate_result.get("source") or "",
+            "posted": posted,
+        }
+        entries.append(entry)
+        entries = entries[-200:]
+        log_path.write_text(json.dumps(entries))
+    except Exception as e:
+        print(f"  [scan log error: {e}]")
 
 
 # ─── STEP 7: Scan loop ───────────────────────────────────────────────────────
@@ -301,11 +368,13 @@ def scan_once(network, client, syllabus, seen, post_count):
         if not q:
             continue
 
+        cid = post.get("id")
         r   = gate(client, syllabus, q)
         cat = r.get("category", "skip")
         print(f"  @{nr} [{cat}] {q[:65].replace(chr(10), ' ')}")
 
         answer = None
+        actually_posted = False
 
         if cat == "syllabus" and r.get("answer"):
             answer = r["answer"]
@@ -327,12 +396,15 @@ def scan_once(network, client, syllabus, seen, post_count):
                 ptype = post_answer(network, post, answer)
                 new_posts += 1
                 current = post_count + new_posts
+                actually_posted = True
                 _last_post_b = {"nr": nr, "question": q[:300], "category": cat, "answer": answer[:500], "time": time.strftime("%Y-%m-%d %H:%M:%S")}
                 append_activity_b(nr, q, cat, answer)
                 print(f"    ✓ posted ({ptype}) [{current}/{CONTENT_LIMIT}]: {answer[:100]}")
                 send_confirmation(nr, q, answer, cat, ptype, current, CONTENT_LIMIT)
             except Exception as e:
                 print(f"    ✗ post failed: {e}")
+
+        append_scan_log_b(nr, cid, q, cat, r, actually_posted)
 
     write_status_b(seen, post_count + new_posts)
     return new_posts

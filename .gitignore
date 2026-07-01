@@ -8,3 +8,5 @@ chem_content_count.json
 __pycache__/
 *.egg-info/
 .DS_Store
+posts_cache.json
+scan_log.json

@@ -1,1 +1,1084 @@
-<h1>loading</h1>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Piazza Bot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #0d0f14;
+      --glass:       rgba(255,255,255,0.048);
+      --glass-hdr:   rgba(255,255,255,0.03);
+      --border:      rgba(255,255,255,0.08);
+      --border-2:    rgba(255,255,255,0.13);
+
+      --text:        #eef1f6;
+      --text-2:      #aab4c8;
+      --muted:       #566070;
+
+      --green:       #4ade80;
+      --red:         #f87171;
+      --yellow:      #fbbf24;
+      --teal:        #34d399;
+
+      --cogs:        #7aa8f4;
+      --cogs-dim:    rgba(122,168,244,0.11);
+      --cogs-border: rgba(122,168,244,0.24);
+      --cogs-fill:   rgba(122,168,244,0.18);
+
+      --chem:        #b48ae0;
+      --chem-dim:    rgba(180,138,224,0.09);
+      --chem-border: rgba(180,138,224,0.22);
+      --chem-fill:   rgba(180,138,224,0.16);
+
+      --r:    14px;
+      --r-sm: 9px;
+      --r-xs: 6px;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 15px;
+      line-height: 1.5;
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+      background-color: var(--bg);
+      background-image:
+        radial-gradient(ellipse 140% 90% at 5% 0%,   rgba(40,55,100,0.22) 0%, transparent 55%),
+        radial-gradient(ellipse 100% 110% at 95% 100%, rgba(65,30,90,0.15) 0%, transparent 55%);
+    }
+
+    /* ── HEADER ──────────────────────────────────────────────────── */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0 24px;
+      background: rgba(13,15,20,0.78);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      flex-shrink: 0;
+      letter-spacing: -0.2px;
+    }
+    .logo span { color: var(--cogs); }
+
+    .hdr-sep { width: 1px; height: 22px; background: var(--border); flex-shrink: 0; }
+
+    .header-bots { display: flex; gap: 8px; flex: 1; min-width: 0; }
+
+    .bot-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: var(--r-sm);
+      background: var(--glass);
+      border: 1px solid var(--border);
+      font-size: 13px;
+      min-width: 0;
+      flex-shrink: 1;
+      transition: border-color 0.2s;
+    }
+    .bot-pill.alive { border-color: rgba(74,222,128,0.20); }
+    .bot-pill.dead  { border-color: rgba(248,113,113,0.20); }
+    .bot-pill.done  { border-color: rgba(52,211,153,0.20); }
+
+    .bot-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--muted);
+      flex-shrink: 0;
+      transition: background 0.25s;
+    }
+    .bot-pill.alive .bot-dot { background: var(--green); animation: softPulse 3s ease-in-out infinite; }
+    .bot-pill.dead  .bot-dot { background: var(--red); }
+    .bot-pill.done  .bot-dot { background: var(--teal); }
+
+    @keyframes softPulse {
+      0%,100% { opacity: 1; }
+      50%      { opacity: 0.38; }
+    }
+
+    .bot-pill-name  { font-weight: 600; color: var(--text); white-space: nowrap; flex-shrink: 0; }
+    .bot-pill-stats { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+    .header-meta { font-size: 11.5px; color: var(--muted); text-align: right; line-height: 1.45; }
+
+    .hdr-btn {
+      background: var(--glass);
+      border: 1px solid var(--border);
+      color: var(--text-2);
+      padding: 6px 15px;
+      border-radius: var(--r-sm);
+      font-size: 13px;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .hdr-btn:hover { background: rgba(255,255,255,0.08); border-color: var(--border-2); color: var(--text); }
+    .hdr-btn:disabled { opacity: 0.38; cursor: default; }
+
+    /* ── MAIN ─────────────────────────────────────────────────────── */
+    main { padding: 22px; max-width: 1240px; margin: 0 auto; }
+
+    #error-bar {
+      background: rgba(248,113,113,0.08);
+      border: 1px solid rgba(248,113,113,0.22);
+      color: var(--red);
+      border-radius: var(--r-sm);
+      padding: 10px 16px;
+      font-size: 13.5px;
+      margin-bottom: 18px;
+      display: none;
+    }
+
+    /* ── COURSE PANELS ────────────────────────────────────────────── */
+    .course-panel {
+      margin-bottom: 20px;
+      border-radius: var(--r);
+      overflow: hidden;
+      background: var(--glass);
+      backdrop-filter: blur(16px) saturate(140%);
+      -webkit-backdrop-filter: blur(16px) saturate(140%);
+      border: 1px solid var(--border);
+    }
+    .cogs-panel { border-top: 1px solid var(--cogs-border); }
+    .chem-panel { border-top: 1px solid var(--chem-border); }
+
+    .course-panel-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      background: var(--glass-hdr);
+    }
+
+    .course-chip {
+      font-size: 12.5px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: var(--r-xs);
+      flex-shrink: 0;
+      letter-spacing: 0.2px;
+    }
+    .cogs-chip { background: var(--cogs-dim); color: var(--cogs); border: 1px solid var(--cogs-border); }
+    .chem-chip { background: var(--chem-dim); color: var(--chem); border: 1px solid var(--chem-border); }
+
+    .course-full-name { font-size: 13px; color: var(--muted); flex: 1; }
+
+    .unans-badge {
+      background: rgba(248,113,113,0.09);
+      color: var(--red);
+      border: 1px solid rgba(248,113,113,0.20);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 2px 9px;
+      border-radius: 999px;
+      display: none;
+    }
+    .unans-badge.visible { display: inline-block; }
+
+    .chem-limit-chip {
+      background: var(--chem-dim);
+      color: var(--chem);
+      border: 1px solid var(--chem-border);
+      font-size: 12.5px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 999px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    /* ── TABS ─────────────────────────────────────────────────────── */
+    .course-tabs { display: flex; gap: 3px; }
+    .tab {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--muted);
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.14s;
+    }
+    .tab:hover { color: var(--text-2); background: rgba(255,255,255,0.04); }
+    .cogs-panel .tab.active { background: var(--cogs-fill); border-color: var(--cogs-border); color: var(--cogs); }
+    .chem-panel .tab.active { background: var(--chem-fill); border-color: var(--chem-border); color: var(--chem); }
+
+    /* ── POST TABLE ───────────────────────────────────────────────── */
+    .post-table-wrap { overflow-x: auto; }
+    .post-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+    .post-table thead th {
+      background: rgba(0,0,0,0.16);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      padding: 9px 18px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .post-table tbody tr {
+      border-bottom: 1px solid rgba(255,255,255,0.042);
+      transition: background 0.1s;
+    }
+    .post-table tbody tr:last-child { border-bottom: none; }
+    .post-table tbody tr:hover td  { background: rgba(255,255,255,0.024); }
+    .post-table td { padding: 13px 18px; vertical-align: middle; }
+
+    .td-nr   { color: var(--muted); font-weight: 600; white-space: nowrap; font-size: 13.5px; min-width: 52px; }
+    .td-cat  { white-space: nowrap; }
+    .td-q    { color: var(--text-2); font-size: 15px; }
+    .td-time { color: var(--muted); white-space: nowrap; font-size: 13px; }
+    .td-act  { white-space: nowrap; }
+
+    /* Rows that need action — very subtle warm highlight */
+    .action-row td { background: rgba(122,168,244,0.025) !important; }
+    .action-row:hover td { background: rgba(122,168,244,0.05) !important; }
+    .draft-row td  { background: rgba(251,191,36,0.025) !important; }
+    .draft-row:hover td { background: rgba(251,191,36,0.05) !important; }
+    .bot-row td    { background: rgba(180,138,224,0.04) !important; }
+    .bot-row:hover td { background: rgba(180,138,224,0.08) !important; }
+
+    .truncate {
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      max-width: 500px;
+    }
+
+    /* ── CATEGORY PILLS ───────────────────────────────────────────── */
+    .cat-pill {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .cat-syllabus  { background: rgba(122,168,244,0.11); color: #93b8f7; }
+    .cat-content   { background: rgba(74,222,128,0.10);  color: #6ee7a0; }
+    .cat-exam      { background: rgba(248,113,113,0.10); color: #fca5a5; }
+    .cat-not_found { background: rgba(251,191,36,0.10);  color: #fcd34d; }
+    .cat-answered  { background: rgba(52,211,153,0.10);  color: #6ee7b7; }
+    .cat-skip      { background: rgba(90,100,120,0.11);  color: var(--muted); }
+    .cat-bot       { background: rgba(180,138,224,0.11); color: #d4b0f0; }
+
+    /* ── ACTION BUTTONS — large and clear ─────────────────────────── */
+    .generate-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--cogs-fill);
+      border: 1px solid var(--cogs-border);
+      color: #c2d8fc;
+      padding: 7px 16px;
+      border-radius: var(--r-sm);
+      font-size: 13.5px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.14s, border-color 0.14s;
+      white-space: nowrap;
+    }
+    .generate-btn:hover { background: rgba(122,168,244,0.26); border-color: rgba(122,168,244,0.38); }
+    .generate-btn::before { content: "✦"; font-size: 10px; opacity: 0.7; }
+
+    .draft-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(251,191,36,0.12);
+      border: 1px solid rgba(251,191,36,0.28);
+      color: #fde68a;
+      padding: 7px 16px;
+      border-radius: var(--r-sm);
+      font-size: 13.5px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.14s;
+      white-space: nowrap;
+    }
+    .draft-btn:hover { background: rgba(251,191,36,0.20); }
+    .draft-btn::before { content: "◎"; font-size: 10px; opacity: 0.7; }
+
+    .posted-label   { font-size: 13.5px; color: #d4b0f0; font-weight: 500; }
+    .answered-label { font-size: 13.5px; color: var(--teal); font-weight: 500; }
+
+    /* ── PANEL FOOTER ─────────────────────────────────────────────── */
+    .course-footer {
+      padding: 8px 18px;
+      border-top: 1px solid var(--border);
+      background: rgba(0,0,0,0.10);
+    }
+    .count-label { font-size: 12px; color: var(--muted); }
+
+    /* ── EMPTY STATE ──────────────────────────────────────────────── */
+    .empty-state { text-align: center; padding: 44px 20px; color: var(--muted); font-size: 14.5px; }
+
+    /* ── SECONDARY SECTIONS (collapsible) ─────────────────────────── */
+    .section-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 2px;
+      font-size: 11.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--muted);
+      cursor: pointer;
+      user-select: none;
+      list-style: none;
+    }
+    .section-toggle::-webkit-details-marker { display: none; }
+    .section-toggle::before {
+      content: "▶";
+      font-size: 8px;
+      display: inline-block;
+      opacity: 0.45;
+      transition: transform 0.18s;
+    }
+    details[open] .section-toggle::before { transform: rotate(90deg); }
+    .section-count { font-weight: 400; letter-spacing: 0; text-transform: none; font-size: 12px; }
+
+    .secondary-card {
+      background: var(--glass);
+      backdrop-filter: blur(16px) saturate(140%);
+      -webkit-backdrop-filter: blur(16px) saturate(140%);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      overflow: hidden;
+      margin-top: 8px;
+      margin-bottom: 14px;
+    }
+    .secondary-scroll { overflow-x: auto; }
+
+    /* ── ACTIVITY TABLE ───────────────────────────────────────────── */
+    .activity-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .activity-table thead th {
+      background: rgba(0,0,0,0.16);
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      padding: 9px 18px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .activity-table tbody tr {
+      border-bottom: 1px solid rgba(255,255,255,0.042);
+      transition: background 0.1s;
+    }
+    .activity-table tbody tr:last-child { border-bottom: none; }
+    .activity-table tbody tr:hover td  { background: rgba(255,255,255,0.02); }
+    .activity-table td { padding: 11px 18px; vertical-align: top; }
+    .td-time-a { color: var(--muted); white-space: nowrap; font-size: 13px; }
+    .td-bot    { font-weight: 600; white-space: nowrap; font-size: 13.5px; }
+    .td-bot.A  { color: var(--cogs); }
+    .td-bot.B  { color: var(--chem); }
+    .td-nr-a   { color: var(--muted); white-space: nowrap; font-size: 13px; }
+    .td-q-a    { max-width: 280px; color: var(--text-2); }
+    .td-ans-a  { max-width: 340px; color: var(--muted); font-size: 13.5px; }
+
+    /* ── MODAL ────────────────────────────────────────────────────── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(10,12,18,0.68);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: rgba(20,24,36,0.95);
+      backdrop-filter: blur(28px) saturate(160%);
+      -webkit-backdrop-filter: blur(28px) saturate(160%);
+      border: 1px solid var(--border-2);
+      border-radius: 18px;
+      width: min(740px, 94vw);
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      animation: modalIn 0.20s cubic-bezier(0.16,1,0.3,1);
+    }
+    @keyframes modalIn {
+      from { opacity: 0; transform: translateY(10px) scale(0.985); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .modal-header {
+      padding: 18px 22px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .modal-header h3 { font-size: 15px; font-weight: 600; color: var(--text); }
+    .modal-close {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 14px;
+      cursor: pointer;
+      padding: 4px 9px;
+      border-radius: var(--r-xs);
+      line-height: 1;
+      transition: color 0.14s, background 0.14s;
+    }
+    .modal-close:hover { background: rgba(255,255,255,0.10); color: var(--text); }
+
+    .modal-body { padding: 22px; overflow-y: auto; flex: 1; }
+
+    .modal-q-label {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      margin-bottom: 8px;
+    }
+    .modal-q-text {
+      background: rgba(0,0,0,0.22);
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      padding: 14px 16px;
+      font-size: 15px;
+      line-height: 1.62;
+      color: var(--text-2);
+      margin-bottom: 18px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 160px;
+      overflow-y: auto;
+    }
+    .modal-a-label {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .modal-generating {
+      font-size: 12.5px;
+      color: var(--cogs);
+      font-weight: 500;
+      text-transform: none;
+      letter-spacing: 0;
+      display: none;
+    }
+    #modal-answer {
+      width: 100%;
+      min-height: 200px;
+      background: rgba(0,0,0,0.22);
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      padding: 14px 16px;
+      font-size: 15px;
+      line-height: 1.62;
+      color: var(--text);
+      resize: vertical;
+      font-family: inherit;
+      transition: border-color 0.14s;
+    }
+    #modal-answer:focus { outline: none; border-color: rgba(122,168,244,0.38); }
+
+    .modal-error    { margin-top: 12px; font-size: 13.5px; color: var(--red);    display: none; }
+    .modal-warnings { margin-top: 12px; font-size: 13.5px; color: var(--yellow); display: none; }
+
+    .modal-footer {
+      padding: 16px 22px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      background: rgba(0,0,0,0.08);
+    }
+    .btn-send {
+      background: rgba(74,222,128,0.14);
+      border: 1px solid rgba(74,222,128,0.30);
+      color: var(--green);
+      font-weight: 600;
+      padding: 10px 22px;
+      border-radius: var(--r-sm);
+      font-size: 14px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.14s;
+    }
+    .btn-send:hover { background: rgba(74,222,128,0.22); }
+    .btn-send:disabled { opacity: 0.35; cursor: default; }
+
+    .btn-regen {
+      background: var(--glass);
+      border: 1px solid var(--border);
+      color: var(--text-2);
+      padding: 10px 18px;
+      border-radius: var(--r-sm);
+      font-size: 14px;
+      font-family: inherit;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.14s, color 0.14s;
+    }
+    .btn-regen:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+    .btn-regen:disabled { opacity: 0.35; cursor: default; }
+
+    .btn-cancel {
+      background: none;
+      border: none;
+      color: var(--muted);
+      padding: 10px 14px;
+      border-radius: var(--r-sm);
+      font-size: 14px;
+      font-family: inherit;
+      font-weight: 500;
+      cursor: pointer;
+      transition: color 0.14s;
+    }
+    .btn-cancel:hover { color: var(--text-2); }
+
+    .modal-sent-msg {
+      margin-left: auto;
+      font-size: 14px;
+      color: var(--green);
+      font-weight: 600;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ──────────────────────────────────────────────────────── -->
+<header>
+  <span class="logo">Piazza <span>Bot</span></span>
+  <div class="hdr-sep"></div>
+  <div class="header-bots">
+    <div class="bot-pill" id="pill-a">
+      <span class="bot-dot"></span>
+      <span class="bot-pill-name">COGS 9</span>
+      <span class="bot-pill-stats" id="pill-a-stats">—</span>
+    </div>
+    <div class="bot-pill" id="pill-b">
+      <span class="bot-dot"></span>
+      <span class="bot-pill-name">CHEM 11</span>
+      <span class="bot-pill-stats" id="pill-b-stats">—</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <button class="hdr-btn" id="fetch-btn" onclick="refreshPosts()">↻ Fetch</button>
+    <button class="hdr-btn" onclick="refresh()">Refresh</button>
+    <div class="header-meta">
+      <div id="last-updated">—</div>
+      <div id="posts-fetched-at"></div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div id="error-bar"></div>
+
+  <!-- ── COGS 9 ───────────────────────────────────────────────────── -->
+  <div class="course-panel cogs-panel">
+    <div class="course-panel-header">
+      <span class="course-chip cogs-chip">COGS 9</span>
+      <span class="course-full-name">Introduction to Data Science</span>
+      <span class="unans-badge" id="cogs-unans-badge"></span>
+      <div class="course-tabs">
+        <button class="tab active" onclick="setCourseFilter('cogs','all')"        id="cogs-f-all">All</button>
+        <button class="tab"        onclick="setCourseFilter('cogs','unanswered')" id="cogs-f-unanswered">Unanswered</button>
+        <button class="tab"        onclick="setCourseFilter('cogs','drafts')"     id="cogs-f-drafts">Drafts</button>
+        <button class="tab"        onclick="setCourseFilter('cogs','answered')"   id="cogs-f-answered">Answered</button>
+        <button class="tab"        onclick="setCourseFilter('cogs','bot')"        id="cogs-f-bot">Bot</button>
+      </div>
+    </div>
+    <div class="post-table-wrap">
+      <table class="post-table">
+        <thead>
+          <tr>
+            <th style="width:58px">Post</th>
+            <th style="width:120px">Category</th>
+            <th>Question</th>
+            <th style="width:145px">Time</th>
+            <th style="width:160px">Action</th>
+          </tr>
+        </thead>
+        <tbody id="cogs-body">
+          <tr><td colspan="5"><div class="empty-state">Loading COGS 9 posts…</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="course-footer">
+      <span id="cogs-count" class="count-label"></span>
+    </div>
+  </div>
+
+  <!-- ── CHEM 11 ──────────────────────────────────────────────────── -->
+  <div class="course-panel chem-panel">
+    <div class="course-panel-header">
+      <span class="course-chip chem-chip">CHEM 11</span>
+      <span class="course-full-name">Introduction to General Chemistry</span>
+      <span class="unans-badge" id="chem-unans-badge"></span>
+      <span class="chem-limit-chip" id="chem-limit-chip">0/10</span>
+      <div class="course-tabs">
+        <button class="tab active" onclick="setCourseFilter('chem','all')"        id="chem-f-all">All</button>
+        <button class="tab"        onclick="setCourseFilter('chem','unanswered')" id="chem-f-unanswered">Unanswered</button>
+        <button class="tab"        onclick="setCourseFilter('chem','drafts')"     id="chem-f-drafts">Drafts</button>
+        <button class="tab"        onclick="setCourseFilter('chem','answered')"   id="chem-f-answered">Answered</button>
+        <button class="tab"        onclick="setCourseFilter('chem','bot')"        id="chem-f-bot">Bot</button>
+      </div>
+    </div>
+    <div class="post-table-wrap">
+      <table class="post-table">
+        <thead>
+          <tr>
+            <th style="width:58px">Post</th>
+            <th style="width:120px">Category</th>
+            <th>Question</th>
+            <th style="width:145px">Time</th>
+            <th style="width:160px">Action</th>
+          </tr>
+        </thead>
+        <tbody id="chem-body">
+          <tr><td colspan="5"><div class="empty-state">Loading CHEM 11 posts…</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="course-footer">
+      <span id="chem-count" class="count-label"></span>
+    </div>
+  </div>
+
+  <!-- ── SECONDARY: ACTIVITY LOG ──────────────────────────────────── -->
+  <details id="activity-details">
+    <summary class="section-toggle">
+      Posted Answers <span class="section-count" id="activity-count"></span>
+    </summary>
+    <div class="secondary-card">
+      <div class="secondary-scroll">
+        <table class="activity-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Bot</th>
+              <th>Post</th>
+              <th>Category</th>
+              <th>Question</th>
+              <th>Answer</th>
+            </tr>
+          </thead>
+          <tbody id="activity-body">
+            <tr><td colspan="6"><div class="empty-state">Loading…</div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+</main>
+
+<!-- ── MODAL ─────────────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-overlay" onclick="handleOverlayClick(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-title">Review Response</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-q-label">Student Question</div>
+      <div class="modal-q-text" id="modal-question"></div>
+      <div class="modal-a-label">
+        Answer
+        <span class="modal-generating" id="modal-generating">Generating…</span>
+      </div>
+      <textarea id="modal-answer" placeholder="Click 'Generate' or type manually…"></textarea>
+      <div class="modal-warnings" id="modal-warnings"></div>
+      <div class="modal-error"    id="modal-error"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-send"   id="btn-send"   onclick="sendResponse()">Send to Piazza</button>
+      <button class="btn-regen"  id="btn-regen"  onclick="generateResponse()">Generate</button>
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <span class="modal-sent-msg" id="modal-sent-msg">✓ Sent!</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── State ─────────────────────────────────────────────────────────────────
+  let _allPosts     = [];
+  let _postsLoading = false;
+  let _chemLimit    = 10;   // updated from status API; counter derived from actual posts
+  const _courseFilters = { cogs: 'all', chem: 'all' };
+  const _COURSE_NAME   = { cogs: 'COGS 9', chem: 'CHEM 11' };
+
+  function _courseKey(name) { return name === 'CHEM 11' ? 'chem' : 'cogs'; }
+
+  // ── Counter fix: always derive CHEM 11 bot count from actual post data ─────
+  function syncChemCounter() {
+    const actual = _allPosts.filter(e => e.course === 'CHEM 11' && e.bot_posted).length;
+    const chip = document.getElementById('chem-limit-chip');
+    if (chip) chip.textContent = `${actual}/${_chemLimit}`;
+  }
+
+  // ── Bot status pills ───────────────────────────────────────────────────────
+  function renderBotPills(data) {
+    const a = data.botA, b = data.botB;
+
+    const pillA = document.getElementById('pill-a');
+    pillA.className = 'bot-pill ' + (a.alive ? 'alive' : (a.status === 'not_started' ? '' : 'dead'));
+    document.getElementById('pill-a-stats').textContent =
+      a.status === 'not_started' ? 'Not started'
+      : `${a.scan_count ?? 0} scans · ${a.posts_answered ?? 0} posted`;
+
+    _chemLimit = b.post_limit ?? 10;
+    const pillB = document.getElementById('pill-b');
+    pillB.className = 'bot-pill ' + (b.objective_complete ? 'done' : (b.alive ? 'alive' : (b.status === 'not_started' ? '' : 'dead')));
+    document.getElementById('pill-b-stats').textContent =
+      b.status === 'not_started' ? `${b.posts_answered ?? 0}/${_chemLimit}`
+      : `${b.scan_count ?? 0} scans · ${b.posts_answered ?? 0}/${_chemLimit}`;
+    // Counter chip is set by syncChemCounter() once posts load
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function showError(msg) {
+    const el = document.getElementById('error-bar');
+    el.textContent = '⚠ ' + msg;
+    el.style.display = 'block';
+  }
+  function hideError() { document.getElementById('error-bar').style.display = 'none'; }
+
+  // ── Activity log ───────────────────────────────────────────────────────────
+  function renderActivity(entries) {
+    const tbody   = document.getElementById('activity-body');
+    const countEl = document.getElementById('activity-count');
+    if (!entries || entries.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">No posts yet.</div></td></tr>`;
+      countEl.textContent = '';
+      return;
+    }
+    countEl.textContent = `(${entries.length})`;
+    tbody.innerHTML = entries.map(e => `
+      <tr>
+        <td class="td-time-a">${e.time || '—'}</td>
+        <td class="td-bot ${e.bot}">${e.bot || '—'}</td>
+        <td class="td-nr-a">@${e.nr}</td>
+        <td><span class="cat-pill cat-${e.category||'skip'}">${e.category||'skip'}</span></td>
+        <td class="td-q-a"><div class="truncate">${escHtml(e.question || '')}</div></td>
+        <td class="td-ans-a"><div class="truncate">${escHtml(e.answer || '')}</div></td>
+      </tr>
+    `).join('');
+  }
+
+  // ── Per-course post tables ─────────────────────────────────────────────────
+  function setCourseFilter(ck, f) {
+    _courseFilters[ck] = f;
+    ['all','unanswered','drafts','answered','bot'].forEach(k => {
+      const el = document.getElementById(`${ck}-f-${k}`);
+      if (el) el.classList.toggle('active', k === f);
+    });
+    renderCourseTable(ck);
+  }
+
+  function _applyFilter(posts, filter) {
+    if (filter === 'unanswered') return posts.filter(e => !e.has_answer);
+    if (filter === 'drafts')     return posts.filter(e => !e.has_answer && e.gate_answer);
+    if (filter === 'answered')   return posts.filter(e =>  e.has_answer);
+    if (filter === 'bot')        return posts.filter(e =>  e.bot_posted);
+    return posts;
+  }
+
+  function renderCourseTable(ck) {
+    const courseName = _COURSE_NAME[ck];
+    const allCourse  = _allPosts.filter(e => e.course === courseName);
+    const filtered   = _applyFilter(allCourse, _courseFilters[ck]);
+    const tbody      = document.getElementById(`${ck}-body`);
+    const countEl    = document.getElementById(`${ck}-count`);
+    const badgeEl    = document.getElementById(`${ck}-unans-badge`);
+
+    countEl.textContent = `${filtered.length} of ${allCourse.length}`;
+
+    const unanswered = allCourse.filter(e => !e.has_answer).length;
+    if (badgeEl) {
+      if (unanswered > 0) {
+        badgeEl.textContent = `${unanswered} unanswered`;
+        badgeEl.classList.add('visible');
+      } else {
+        badgeEl.classList.remove('visible');
+      }
+    }
+
+    if (filtered.length === 0) {
+      const msg = allCourse.length === 0
+        ? (_postsLoading ? `Loading ${courseName}…` : 'No posts — click "↻ Fetch" to load')
+        : 'No posts match this filter.';
+      tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state">${msg}</div></td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = filtered.map((e, i) => {
+      const cat  = e.category || '';
+      const pill = cat
+        ? `<span class="cat-pill cat-${cat}">${cat}</span>`
+        : `<span class="cat-pill cat-skip">—</span>`;
+
+      let action, rowClass;
+      if (e.bot_posted) {
+        action   = `<span class="posted-label">✓ Bot posted</span>`;
+        rowClass = 'bot-row';
+      } else if (e.has_answer) {
+        action   = `<span class="answered-label">✓ Answered</span>`;
+        rowClass = '';
+      } else if (e.gate_answer) {
+        action   = `<button class="draft-btn" onclick="openDraft(${i},'${ck}')">Review Draft</button>`;
+        rowClass = 'draft-row';
+      } else {
+        action   = `<button class="generate-btn" onclick="openModal(${i},'${ck}')">Generate</button>`;
+        rowClass = 'action-row';
+      }
+
+      return `<tr${rowClass ? ` class="${rowClass}"` : ''}>
+        <td class="td-nr">@${e.nr}</td>
+        <td class="td-cat">${pill}</td>
+        <td class="td-q"><div class="truncate">${escHtml(e.question || '')}</div></td>
+        <td class="td-time">${e.time || '—'}</td>
+        <td class="td-act">${action}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function renderAllCourses() {
+    renderCourseTable('cogs');
+    renderCourseTable('chem');
+    syncChemCounter(); // always derive from actual post data, not status JSON
+  }
+
+  // ── Modal ──────────────────────────────────────────────────────────────────
+  let _modalEntry = null;
+
+  function _getFilteredForCourse(ck) {
+    return _applyFilter(
+      _allPosts.filter(e => e.course === _COURSE_NAME[ck]),
+      _courseFilters[ck]
+    );
+  }
+
+  function openModal(idx, ck) { _openModalForEntry(_getFilteredForCourse(ck)[idx], true);  }
+  function openDraft(idx, ck) { _openModalForEntry(_getFilteredForCourse(ck)[idx], false); }
+
+  function _openModalForEntry(entry, autoGenerate) {
+    _modalEntry = entry;
+    document.getElementById('modal-title').textContent =
+      autoGenerate
+        ? `Generate Response — @${entry.nr} (${entry.course})`
+        : `Review Draft — @${entry.nr} (${entry.course})`;
+    document.getElementById('modal-question').textContent = entry.question || '';
+    document.getElementById('modal-answer').value = autoGenerate ? '' : (entry.gate_answer || '');
+    document.getElementById('modal-error').style.display    = 'none';
+    document.getElementById('modal-warnings').style.display = 'none';
+    document.getElementById('modal-sent-msg').style.display = 'none';
+    document.getElementById('btn-send').disabled  = false;
+    document.getElementById('btn-regen').disabled = false;
+    document.getElementById('modal-overlay').classList.add('open');
+    if (autoGenerate) generateResponse();
+  }
+
+  function closeModal() {
+    document.getElementById('modal-overlay').classList.remove('open');
+    _modalEntry = null;
+  }
+
+  function handleOverlayClick(e) {
+    if (e.target === document.getElementById('modal-overlay')) closeModal();
+  }
+
+  async function generateResponse() {
+    if (!_modalEntry) return;
+    const genEl    = document.getElementById('modal-generating');
+    const errEl    = document.getElementById('modal-error');
+    const warnEl   = document.getElementById('modal-warnings');
+    const ta       = document.getElementById('modal-answer');
+    const btnRegen = document.getElementById('btn-regen');
+    const btnSend  = document.getElementById('btn-send');
+    genEl.style.display  = 'inline';
+    errEl.style.display  = 'none';
+    warnEl.style.display = 'none';
+    btnRegen.disabled = btnSend.disabled = true;
+    ta.value = '';
+    try {
+      const res  = await fetch('/api/generate', {
+        method:  'POST',
+        headers: {'Content-Type': 'application/json'},
+        body:    JSON.stringify({ question: _modalEntry.question, course: _modalEntry.course }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error || 'API error');
+      ta.value = json.answer;
+      if (json.warnings && json.warnings.length > 0) {
+        warnEl.textContent = '⚠ Checklist issues (edit before sending): ' + json.warnings.join(', ');
+        warnEl.style.display = 'block';
+      }
+    } catch (err) {
+      errEl.textContent = 'Generation failed: ' + err.message;
+      errEl.style.display = 'block';
+    } finally {
+      genEl.style.display = 'none';
+      btnRegen.disabled = btnSend.disabled = false;
+    }
+  }
+
+  async function sendResponse() {
+    if (!_modalEntry) return;
+    const answer = document.getElementById('modal-answer').value.trim();
+    if (!answer) {
+      const errEl = document.getElementById('modal-error');
+      errEl.textContent = 'Answer is empty.';
+      errEl.style.display = 'block';
+      return;
+    }
+    const btnSend  = document.getElementById('btn-send');
+    const btnRegen = document.getElementById('btn-regen');
+    const sentMsg  = document.getElementById('modal-sent-msg');
+    const errEl    = document.getElementById('modal-error');
+    btnSend.disabled = btnRegen.disabled = true;
+    errEl.style.display = 'none';
+    btnSend.textContent = 'Sending…';
+    try {
+      const res  = await fetch('/api/send', {
+        method:  'POST',
+        headers: {'Content-Type': 'application/json'},
+        body:    JSON.stringify({ cid: _modalEntry.cid, answer, course: _modalEntry.course }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error || 'API error');
+      sentMsg.style.display = 'inline';
+      btnSend.textContent   = 'Send to Piazza';
+      _markSentInUI(_modalEntry);
+      setTimeout(closeModal, 1800);
+    } catch (err) {
+      errEl.textContent = 'Send failed: ' + err.message;
+      errEl.style.display = 'block';
+      btnSend.disabled = btnRegen.disabled = false;
+      btnSend.textContent = 'Send to Piazza';
+    }
+  }
+
+  function _markSentInUI(entry) {
+    const idx = _allPosts.findIndex(e => e.cid === entry.cid && e.nr === entry.nr);
+    if (idx !== -1) _allPosts[idx].posted = _allPosts[idx].bot_posted = _allPosts[idx].has_answer = true;
+    renderCourseTable(_courseKey(entry.course));
+    syncChemCounter();
+  }
+
+  // ── Posts refresh ──────────────────────────────────────────────────────────
+  async function refreshPosts() {
+    const btn = document.getElementById('fetch-btn');
+    btn.disabled = true;
+    btn.textContent = '↻ Fetching…';
+    try {
+      const res  = await fetch('/api/all_posts?refresh=1');
+      const data = await res.json();
+      if (data.posts) {
+        _allPosts = data.posts;
+        renderAllCourses();
+        const fa = document.getElementById('posts-fetched-at');
+        if (fa && data.fetched_at) fa.textContent = `Fetched ${data.fetched_at}`;
+      }
+    } catch (err) {
+      showError('Could not refresh posts: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '↻ Fetch';
+    }
+  }
+
+  // ── Main refresh ───────────────────────────────────────────────────────────
+  async function refresh() {
+    hideError();
+    try {
+      const [statusRes, activityRes, postsRes] = await Promise.all([
+        fetch('/api/status'),
+        fetch('/api/activity'),
+        fetch('/api/all_posts'),
+      ]);
+      if (!statusRes.ok || !activityRes.ok) throw new Error('API error');
+      const [status, activity] = await Promise.all([statusRes.json(), activityRes.json()]);
+      renderBotPills(status);
+      renderActivity(activity);
+
+      if (postsRes.ok) {
+        _postsLoading = false;
+        const data = await postsRes.json();
+        if (data.posts) {
+          _allPosts = data.posts;
+          const fa = document.getElementById('posts-fetched-at');
+          if (fa && data.fetched_at) fa.textContent = `Fetched ${data.fetched_at}`;
+        } else if (data.error) {
+          const scanRes = await fetch('/api/scan_log');
+          if (scanRes.ok) {
+            const entries = await scanRes.json();
+            _allPosts = entries.map(e => ({...e, has_answer: e.posted, bot_posted: e.posted}));
+          }
+        }
+        renderAllCourses();
+      }
+
+      document.getElementById('last-updated').textContent =
+        'Updated ' + new Date().toLocaleTimeString();
+    } catch (err) {
+      showError('Could not reach dashboard — is dashboard.py running? (' + err.message + ')');
+    }
+  }
+
+  _postsLoading = true;
+  refresh();
+  setInterval(refresh, 30000);
+</script>
+</body>
+</html>

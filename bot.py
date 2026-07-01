@@ -17,11 +17,12 @@ import anthropic
 from piazza_api import Piazza
 
 # ─── CONFIGURATION ────────────────────────────────────────────────────────────
-SYLLABUS_PATH = os.environ.get("SYLLABUS_PATH", "syllabus.txt")
+BASE_DIR      = Path(__file__).parent
+SYLLABUS_PATH = BASE_DIR / os.environ.get("SYLLABUS_PATH", "syllabus.txt")
 GATE_MODEL    = "claude-haiku-4-5"   # cheapest Claude model; ideal for classification
 POLL_LIMIT    = 30                   # number of recent posts to scan each cycle
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL", "120"))   # seconds between scans
-SEEN_FILE     = os.environ.get("SEEN_FILE", "seen.json")      # deduplication log
+SEEN_FILE     = BASE_DIR / os.environ.get("SEEN_FILE", "seen.json")
 
 _scan_count = 0
 _posts_answered_a = 0
@@ -191,14 +192,14 @@ def write_status_a(seen):
             "poll_interval": POLL_INTERVAL,
             "last_post": _last_post_a,
         }
-        Path("bot_status.json").write_text(json.dumps(data))
+        (BASE_DIR / "bot_status.json").write_text(json.dumps(data))
     except Exception as e:
         print(f"  [status write error: {e}]")
 
 def append_activity_a(nr, question, category, answer):
     """Append one entry to activity_log.json (shared with Bot B). Max 100 entries."""
     try:
-        log_path = Path("activity_log.json")
+        log_path = BASE_DIR / "activity_log.json"
         try:
             entries = json.loads(log_path.read_text()) if log_path.exists() else []
             if not isinstance(entries, list):
@@ -219,6 +220,35 @@ def append_activity_a(nr, question, category, answer):
         log_path.write_text(json.dumps(entries))
     except Exception as e:
         print(f"  [activity log error: {e}]")
+
+def append_scan_log_a(nr, cid, question, category, gate_result, posted):
+    """Log every classified post to scan_log.json (shared with Bot B). Max 200 entries."""
+    try:
+        log_path = BASE_DIR / "scan_log.json"
+        try:
+            entries = json.loads(log_path.read_text()) if log_path.exists() else []
+            if not isinstance(entries, list):
+                entries = []
+        except Exception:
+            entries = []
+        entry = {
+            "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "bot": "A",
+            "course": "COGS 9",
+            "nr": nr,
+            "cid": cid,
+            "question": question[:400],
+            "category": category,
+            "gate_answer": (gate_result.get("answer") or "")[:500],
+            "source": gate_result.get("source") or "",
+            "evidence": gate_result.get("evidence") or "",
+            "posted": posted,
+        }
+        entries.append(entry)
+        entries = entries[-200:]
+        log_path.write_text(json.dumps(entries))
+    except Exception as e:
+        print(f"  [scan log error: {e}]")
 
 
 # ─── STEP 5: The scan loop ────────────────────────────────────────────────────
@@ -254,10 +284,12 @@ def scan_once(network, client, syllabus, seen):
         if not q:
             continue
 
+        cid = post.get("id")
         r   = gate(client, syllabus, q)
         cat = r.get("category", "skip")
         print(f"  @{nr} [{cat}] {q[:65].replace(chr(10), ' ')}")
 
+        actually_posted = False
         if cat == "syllabus" and r.get("answer"):
             source   = r.get("source", "")
             evidence = r.get("evidence", "")
@@ -274,6 +306,7 @@ def scan_once(network, client, syllabus, seen):
                 ptype = post_answer(network, post, answer)
                 posted += 1
                 _posts_answered_a += 1
+                actually_posted = True
                 _last_post_a = {"nr": nr, "question": q[:300], "category": cat, "answer": answer[:500], "time": time.strftime("%Y-%m-%d %H:%M:%S")}
                 append_activity_a(nr, q, cat, answer)
                 print(f"    ✓ posted ({ptype}): {answer[:100]}")
@@ -284,6 +317,8 @@ def scan_once(network, client, syllabus, seen):
             print("    -> course content, skipping (leave for instructor/TAs)")
         elif cat == "not_found":
             print("    -> not in syllabus, skipping (leave for instructor/TAs)")
+
+        append_scan_log_a(nr, cid, q, cat, r, actually_posted)
 
     write_status_a(seen)
     return posted

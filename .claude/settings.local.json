@@ -4,7 +4,8 @@
       "Bash(./venv/bin/python3 *)",
       "Skill(claude-api)",
       "Bash(python3 *)",
-      "Bash(git *)"
+      "Bash(git *)",
+      "Bash(python3 -m json.tool)"
     ]
   }
 }
