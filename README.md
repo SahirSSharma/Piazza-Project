@@ -33,6 +33,12 @@ The bot **only ever answers logistics questions** (grading policies, deadlines, 
 
 ---
 
+## How the bot gets Canvas context
+
+The CHEM 11 bot (`assistant_b.py`) supplements its syllabus grounding with live Canvas material — the primary COGS 9 bot (`bot.py`) is syllabus-only and does not use Canvas at all. When the CHEM 11 bot classifies an incoming question as `content` and detects that it references specific course material (a particular assignment, page, or file), it fetches that item from Canvas via the REST API and injects it as additional context before generating the answer. The academic integrity gate is unchanged: if the fetched material is an exam or quiz, the question is silently skipped exactly as it would be without Canvas context. Because UCSD disables personal access tokens for student accounts, authentication is session-cookie based. One-time setup: run `python canvas_login.py`, log into canvas.ucsd.edu in a browser, copy the `canvas_session` cookie value from browser devtools and paste it when prompted — the script writes `canvas_cookies.json` (gitignored). Re-run `canvas_login.py` whenever the session expires. If Canvas is unreachable or the session has expired, the bot falls back first to a local crawled cache at `~/.claude/canvas-cache/`, then to answering without Canvas context — the scan loop never crashes. All Canvas-related environment variables are optional; the feature degrades gracefully if any or all are absent.
+
+---
+
 ## Architecture
 
 ```
@@ -106,6 +112,11 @@ To switch courses: update `PIAZZA_NETWORK` in `.env` and replace `syllabus.txt`.
 | `GMAIL_APP_PASSWORD` | No | Gmail App Password (Settings → Security → App Passwords) |
 | `POLL_INTERVAL` | No | Seconds between scans (default: `120`) |
 | `SYLLABUS_PATH` | No | Path to syllabus file (default: `syllabus.txt`) |
+| `CANVAS_COOKIES_PATH` | No | Path to the persisted Canvas session-cookie file written by `canvas_login.py` (default: `canvas_cookies.json`). Feature degrades gracefully if absent. |
+| `CHEM_CANVAS_COURSE_ID` | No | Numeric Canvas course ID for CHEM 11. Used for live API calls; local-cache fallback works without it. |
+| `CANVAS_API_BASE` | No | Canvas REST API base URL (default: `https://canvas.ucsd.edu/api/v1`). |
+| `CANVAS_LOCAL_CACHE_DIR` | No | Path to the local crawled Canvas cache used as fallback when the session is expired or Canvas is unreachable (default: `~/.claude/canvas-cache`). |
+| `CANVAS_CACHE_TTL_HOURS` | No | How long (in hours) to cache live Canvas API responses in memory (default: `6`). |
 
 ---
 
