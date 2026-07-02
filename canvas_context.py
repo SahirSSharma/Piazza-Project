@@ -12,18 +12,22 @@ from pathlib import Path
 # Read from env at import time. No network calls at module level.
 BASE_DIR = Path(__file__).parent
 
-_API_TOKEN  = os.environ.get("CANVAS_API_TOKEN", "")
-_COURSE_ID  = os.environ.get("CHEM_CANVAS_COURSE_ID", "")
-_API_BASE   = os.environ.get("CANVAS_API_BASE", "https://canvas.ucsd.edu/api/v1").rstrip("/")
-_TTL_HOURS  = int(os.environ.get("CANVAS_CACHE_TTL_HOURS", "6"))
-_CACHE_FILE = os.environ.get("CANVAS_CACHE_FILE", "canvas_cache.json")
-_CACHE_PATH = BASE_DIR / _CACHE_FILE
+_COURSE_ID       = os.environ.get("CHEM_CANVAS_COURSE_ID", "")
+_API_BASE        = os.environ.get("CANVAS_API_BASE", "https://canvas.ucsd.edu/api/v1").rstrip("/")
+_TTL_HOURS       = int(os.environ.get("CANVAS_CACHE_TTL_HOURS", "6"))
+_CACHE_FILE      = os.environ.get("CANVAS_CACHE_FILE", "canvas_cache.json")
+_CACHE_PATH      = BASE_DIR / _CACHE_FILE
+_COOKIES_PATH    = BASE_DIR / os.environ.get("CANVAS_COOKIES_PATH", "canvas_cookies.json")
+_LOCAL_CACHE_DIR = Path(os.environ.get("CANVAS_LOCAL_CACHE_DIR", "~/.claude/canvas-cache")).expanduser()
 
 # Hard cap on context_block to keep token budgets sane (~2000 tokens)
 _MAX_CONTEXT_CHARS = 8000
 
 # Title keywords that indicate an assessment (case-insensitive, checked via `in`)
 _ASSESSMENT_WORDS = {"quiz", "exam", "midterm", "final", "test"}
+
+# Set True when the server returns 401 or redirects to login; suppresses further requests
+_session_expired = False
 
 
 # ─── HTML STRIPPING ───────────────────────────────────────────────────────────
@@ -79,7 +83,7 @@ def _cache_set(key, value):
         pass
 
 
-# ─── HTTP: urllib ONLY, Bearer auth, pagination ───────────────────────────────
+# ─── HTTP: urllib ONLY, session-cookie auth, pagination ───────────────────────
 
 def _parse_next_link(link_header):
     """
@@ -96,17 +100,35 @@ def _parse_next_link(link_header):
     return None
 
 
+def _load_cookies():
+    """
+    Read canvas_cookies.json and return a Cookie header string like
+    "canvas_session=abc; _csrf_token=xyz", or None if file absent, empty, or any error.
+    """
+    try:
+        if not _COOKIES_PATH.exists():
+            return None
+        data = json.loads(_COOKIES_PATH.read_text(encoding="utf-8"))
+        if not data:
+            return None
+        return "; ".join(f"{k}={v}" for k, v in data.items())
+    except Exception:
+        return None
+
+
 def _api_get(path, params=None):
     """
-    GET {_API_BASE}{path} with Bearer token auth.
+    GET {_API_BASE}{path} with session-cookie auth.
     Follows Canvas pagination via Link headers automatically.
     Returns parsed JSON (list or dict) or None on any error.
-    Never called when _API_TOKEN is absent.
+    Sets _session_expired=True on 401 or redirect-to-login responses.
     """
-    if not _API_TOKEN:
+    global _session_expired
+    cookie_str = _load_cookies()
+    if cookie_str is None:
         return None
     try:
-        headers = {"Authorization": f"Bearer {_API_TOKEN}"}
+        headers = {"Cookie": cookie_str}
         base_params = {"per_page": "100"}
         if params:
             base_params.update({str(k): str(v) for k, v in params.items()})
@@ -117,19 +139,32 @@ def _api_get(path, params=None):
 
         while url:
             req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                body = resp.read().decode("utf-8", errors="replace")
-                parsed = json.loads(body)
+            try:
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    body = resp.read().decode("utf-8", errors="replace")
+                    resp_url = resp.geturl() if hasattr(resp, "geturl") else ""
+                    # Canvas redirects expired sessions to SSO login page
+                    if ("login" in body.lower() and "canvas" in body.lower()
+                            and "login" in str(resp_url).lower()):
+                        print("WARNING: Canvas session appears expired (redirect-to-login detected).")
+                        _session_expired = True
+                        return None
+                    parsed = json.loads(body)
 
-                if is_list is None:
-                    is_list = isinstance(parsed, list)
+                    if is_list is None:
+                        is_list = isinstance(parsed, list)
 
-                if is_list:
-                    accumulated.extend(parsed)
-                    # Follow Canvas pagination if more pages exist
-                    url = _parse_next_link(resp.headers.get("Link", ""))
-                else:
-                    return parsed
+                    if is_list:
+                        accumulated.extend(parsed)
+                        url = _parse_next_link(resp.headers.get("Link", ""))
+                    else:
+                        return parsed
+
+            except urllib.error.HTTPError as e:
+                if e.code == 401:
+                    print("WARNING: Canvas session cookie returned 401 — session may be expired.")
+                    _session_expired = True
+                return None
 
         return accumulated if is_list else None
 
@@ -140,8 +175,8 @@ def _api_get(path, params=None):
 # ─── PUBLIC: CONFIGURATION CHECK ─────────────────────────────────────────────
 
 def is_configured():
-    """True iff both CANVAS_API_TOKEN and a course id are present."""
-    return bool(_API_TOKEN) and bool(_COURSE_ID)
+    """True iff a cookies file can be loaded OR the local cache directory exists."""
+    return _load_cookies() is not None or _LOCAL_CACHE_DIR.exists()
 
 
 # ─── CANVAS ENDPOINTS (all TTL-cached) ───────────────────────────────────────
@@ -314,21 +349,80 @@ def _build_context_block(excerpts):
     return "".join(parts)[:_MAX_CONTEXT_CHARS].strip()
 
 
+# ─── LOCAL CACHE FALLBACK ────────────────────────────────────────────────────
+
+def _search_local_cache(question, tags):
+    """
+    Scan _LOCAL_CACHE_DIR for subdirectories matching "CHEM_11" or "CHEM11"
+    (case-insensitive) and score .txt files within them against question/tags.
+
+    Returns list of excerpt dicts (same shape as live Canvas excerpts), or []
+    on any error. Never raises.
+    """
+    try:
+        if not _LOCAL_CACHE_DIR.exists():
+            return []
+
+        scored = []
+        for subdir in _LOCAL_CACHE_DIR.iterdir():
+            if not subdir.is_dir():
+                continue
+            name_lower = subdir.name.lower()
+            if "chem_11" not in name_lower and "chem11" not in name_lower:
+                continue
+            for txt_file in subdir.glob("*.txt"):
+                try:
+                    content = txt_file.read_text(encoding="utf-8", errors="replace")
+                except Exception:
+                    continue
+                title = txt_file.stem
+                pseudo_item = {
+                    "title": title,
+                    "name": title,
+                    "description": content[:2000],
+                }
+                s = _score(question, tags, pseudo_item)
+                if s > 0:
+                    scored.append((s, txt_file, title))
+
+        scored.sort(key=lambda x: x[0], reverse=True)
+        top = scored[:3]
+
+        excerpts = []
+        for _, filepath, title in top:
+            try:
+                content = filepath.read_text(encoding="utf-8", errors="replace")
+            except Exception:
+                continue
+            excerpts.append({
+                "title": title,
+                "type": "file",
+                "text": content[:_MAX_CONTEXT_CHARS],
+                "url": str(filepath),
+            })
+        return excerpts
+
+    except Exception:
+        return []
+
+
 # ─── PUBLIC: RETRIEVE ─────────────────────────────────────────────────────────
 
 def retrieve(question_text, tags=None, course_id=None):
     """
     Find the best-matching Canvas course material for question_text + tags.
 
-    Always returns a complete dict and never raises. On unconfigured token,
-    network error, or no match, returns the empty-result dict.
+    Tries live Canvas first (if session cookies present and not expired), then
+    falls back to local file cache. Always returns a complete dict and never
+    raises. On unconfigured state, network error, or no match, returns the
+    empty-result dict.
 
     Return shape:
     {
         "found": bool,
         "is_assessment": bool,       # True if best match is a quiz/exam — caller must skip
         "context_block": str,        # bounded to ~8000 chars, "" when not found
-        "excerpts": [{"title": str, "type": "assignment|page", "text": str, "url": str}]
+        "excerpts": [{"title": str, "type": "assignment|page|file", "text": str, "url": str}]
     }
     """
     try:
@@ -342,76 +436,85 @@ def _retrieve_inner(question_text, tags, course_id):
     if not is_configured():
         return _empty_result()
 
-    resolved_course_id = course_id or _COURSE_ID
-    if not resolved_course_id:
-        return _empty_result()
+    # Try live Canvas only if session cookies are available and not expired
+    if _load_cookies() is not None and not _session_expired:
+        resolved_course_id = course_id or _COURSE_ID
+        if resolved_course_id:
+            candidates = []
 
-    # Build candidate list from assignments + pages
-    candidates = []
+            for item in (list_assignments(resolved_course_id) or []):
+                s = _score(question_text, tags, item)
+                if s > 0:
+                    candidates.append({"_type": "assignment", "_item": item, "_score": s})
 
-    for item in (list_assignments(resolved_course_id) or []):
-        s = _score(question_text, tags, item)
-        if s > 0:
-            candidates.append({"_type": "assignment", "_item": item, "_score": s})
+            for item in (list_pages(resolved_course_id) or []):
+                s = _score(question_text, tags, item)
+                if s > 0:
+                    candidates.append({"_type": "page", "_item": item, "_score": s})
 
-    for item in (list_pages(resolved_course_id) or []):
-        s = _score(question_text, tags, item)
-        if s > 0:
-            candidates.append({"_type": "page", "_item": item, "_score": s})
+            if candidates:
+                candidates.sort(key=lambda c: c["_score"], reverse=True)
+                top = candidates[:3]
 
-    if not candidates:
-        return _empty_result()
+                excerpts = []
+                is_assessment = False
 
-    # Sort by score descending, take top 3
-    candidates.sort(key=lambda c: c["_score"], reverse=True)
-    top = candidates[:3]
+                for cand in top:
+                    item = cand["_item"]
+                    ctype = cand["_type"]
 
-    excerpts = []
-    is_assessment = False
+                    if ctype == "assignment":
+                        full = get_assignment(resolved_course_id, item.get("id", "")) or item
+                        text = _strip_html(full.get("description") or "")
+                        title = full.get("name") or full.get("title") or ""
+                        url = full.get("html_url") or ""
 
-    for cand in top:
-        item = cand["_item"]
-        ctype = cand["_type"]
+                    elif ctype == "page":
+                        slug = item.get("url") or item.get("page_id") or ""
+                        if not slug:
+                            continue
+                        full = get_page(resolved_course_id, slug) or item
+                        text = _strip_html(full.get("body") or "")
+                        title = full.get("title") or ""
+                        url = full.get("html_url") or ""
 
-        if ctype == "assignment":
-            full = get_assignment(resolved_course_id, item.get("id", "")) or item
-            text = _strip_html(full.get("description") or "")
-            title = full.get("name") or full.get("title") or ""
-            url = full.get("html_url") or ""
+                    else:
+                        continue
 
-        elif ctype == "page":
-            slug = item.get("url") or item.get("page_id") or ""
-            if not slug:
-                continue
-            full = get_page(resolved_course_id, slug) or item
-            text = _strip_html(full.get("body") or "")
-            title = full.get("title") or ""
-            url = full.get("html_url") or ""
+                    # Binary/non-text items have no extractable text — skip gracefully
+                    if not text:
+                        continue
 
-        else:
-            continue
+                    # Assessment check: flag if any fetched material is an assessment
+                    if _looks_like_assessment(full):
+                        is_assessment = True
 
-        # Binary/non-text items have no extractable text — skip gracefully
-        if not text:
-            continue
+                    excerpts.append({
+                        "title": title,
+                        "type": ctype,
+                        "text": text,
+                        "url": url,
+                    })
 
-        # Assessment check: flag if any fetched material is an assessment
-        if _looks_like_assessment(full):
-            is_assessment = True
+                if excerpts:
+                    return {
+                        "found": True,
+                        "is_assessment": is_assessment,
+                        "context_block": _build_context_block(excerpts),
+                        "excerpts": excerpts,
+                    }
 
-        excerpts.append({
-            "title": title,
-            "type": ctype,
-            "text": text,
-            "url": url,
-        })
+    # Fallback: scan local file cache
+    local_excerpts = _search_local_cache(question_text, tags)
+    if local_excerpts:
+        is_assessment = any(
+            _looks_like_assessment({"name": ex["title"]}) for ex in local_excerpts
+        )
+        return {
+            "found": True,
+            "is_assessment": is_assessment,
+            "context_block": _build_context_block(local_excerpts),
+            "excerpts": local_excerpts,
+        }
 
-    if not excerpts:
-        return _empty_result()
-
-    return {
-        "found": True,
-        "is_assessment": is_assessment,
-        "context_block": _build_context_block(excerpts),
-        "excerpts": excerpts,
-    }
+    return _empty_result()

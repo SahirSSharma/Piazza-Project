@@ -11,4 +11,5 @@ __pycache__/
 posts_cache.json
 scan_log.json
 canvas_cache.json
+canvas_cookies.json
 .claude/
