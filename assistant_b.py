@@ -13,6 +13,11 @@ if _env.exists():
 import anthropic
 from piazza_api import Piazza
 
+try:
+    import canvas_context
+except Exception:
+    canvas_context = None
+
 # ─── CONFIGURATION ────────────────────────────────────────────────────────────
 # Uses CHEM_* env vars so both bots can run simultaneously without interfering.
 BASE_DIR           = Path(__file__).parent
@@ -47,11 +52,11 @@ _last_post_b = None   # dict or None
 GATE_SYSTEM = """You triage questions on a college chemistry course forum (CHEM 11, intro chemistry for non-science majors at UCSD).
 
 Respond with ONLY a raw JSON object, no markdown or code fences:
-{{"category": "...", "answer": "...", "source": "..."}}
+{{"category": "...", "answer": "...", "source": "...", "context_ref": "..."}}
 
 category is exactly one of:
 - "syllabus": a logistics/policy/schedule/grading question whose answer is clearly in the syllabus. "answer" = concise, accurate answer. "source" = syllabus section name. Leave "answer" and "source" empty if not in syllabus.
-- "content": a chemistry subject-matter question (concepts, reactions, calculations, nomenclature, periodic table, stoichiometry, molecular structure, etc.). Set "answer" to "" — a second model will generate the chemistry answer. "source" = "".
+- "content": a chemistry subject-matter question (concepts, reactions, calculations, nomenclature, periodic table, stoichiometry, molecular structure, etc.). Set "answer" to "" — a second model will generate the chemistry answer. "source" = "". Set "context_ref" to a short string naming the specific course material the student is referencing (e.g., "Chapter 1 HW Item 7 part A") when the question clearly references a specific assignment, problem set, or course artifact; otherwise "".
 - "exam": the question appears to be asking for help solving an exam or quiz problem currently in progress (e.g., "the exam asks...", "question 3 says...", "on the test right now..."). Never answer. "answer" = "". "source" = "".
 - "not_found": a legitimate logistics question NOT covered by the syllabus. "answer" = "". "source" = "".
 - "skip": greeting, thank-you, off-topic noise, or meta-comment. "answer" = "". "source" = "".
@@ -183,19 +188,28 @@ def _check_answer(text):
 
 # ─── STEP 6: Chemistry answer call ───────────────────────────────────────────
 
-def answer_chemistry(client, question, max_attempts=3):
+def answer_chemistry(client, question, context=None, max_attempts=3):
     """
     Generate a chemistry answer using Haiku.
     Only called after the gate confirms the question is course content (not an exam).
     Retries up to max_attempts times if the answer fails the quality checklist.
+    When context is a non-empty string, it is prepended to the user message so the
+    model can reference specific course material without changing CONTENT_SYSTEM.
     """
+    if context:
+        user_message = (
+            f"COURSE MATERIAL CONTEXT (for reference, may be partial):\n{context}"
+            f"\n\nQUESTION:\n{question}"
+        )
+    else:
+        user_message = question
     answer = ""
     for attempt in range(1, max_attempts + 1):
         resp = client.messages.create(
             model=CONTENT_MODEL,
             max_tokens=400,
             system=CONTENT_SYSTEM,
-            messages=[{"role": "user", "content": question}]
+            messages=[{"role": "user", "content": user_message}]
         )
         answer = "".join(b.text for b in resp.content if b.type == "text").strip()
         violations = _check_answer(answer)
@@ -381,8 +395,38 @@ def scan_once(network, client, syllabus, seen, post_count):
 
         elif cat == "content":
             print("    -> chemistry question — generating answer...")
+            _ctx = None
             try:
-                answer = answer_chemistry(client, q)
+                _folders = list(post.get("folders", [])) + list(post.get("tags", []))
+                _context_ref = r.get("context_ref", "")
+                _material_tags = {"homework", "hw", "assignment"}
+                _should_fetch = (
+                    canvas_context is not None
+                    and canvas_context.is_configured()
+                    and (
+                        bool(_context_ref)
+                        or any(
+                            t in _material_tags or t.startswith("chapter_")
+                            for t in _folders
+                        )
+                    )
+                )
+                if _should_fetch:
+                    try:
+                        _result = canvas_context.retrieve(q, tags=_folders)
+                        if _result.get("is_assessment"):
+                            print("    -> fetched material is an assessment, skipping (academic integrity)")
+                            append_scan_log_b(nr, cid, q, cat, r, False)
+                            continue
+                        if _result.get("found"):
+                            _ctx = _result.get("context_block") or None
+                    except Exception as _e:
+                        print(f"    [canvas_context] retrieve failed, falling back: {_e}")
+            except Exception as e:
+                print(f"    [canvas context error: {e}]")
+                _ctx = None
+            try:
+                answer = answer_chemistry(client, q, context=_ctx)
             except Exception as e:
                 print(f"    ✗ content answer failed: {e}")
 
