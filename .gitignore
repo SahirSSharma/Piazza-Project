@@ -10,3 +10,5 @@ __pycache__/
 .DS_Store
 posts_cache.json
 scan_log.json
+canvas_cache.json
+.claude/
