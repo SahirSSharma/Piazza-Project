@@ -116,6 +116,23 @@ def _load_cookies():
         return None
 
 
+def _ssl_context():
+    """
+    SSL context for Canvas requests. python.org macOS installs ship without a
+    linked system trust store, so prefer certifi's bundle when available.
+    """
+    try:
+        import ssl, certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        return None
+
+
+def _strip_json_guard(body):
+    """Canvas prefixes cookie-authenticated JSON responses with 'while(1);'."""
+    return body[9:] if body.startswith("while(1);") else body
+
+
 def _api_get(path, params=None):
     """
     GET {_API_BASE}{path} with session-cookie auth.
@@ -129,6 +146,7 @@ def _api_get(path, params=None):
         return None
     try:
         headers = {"Cookie": cookie_str}
+        ctx = _ssl_context()
         base_params = {"per_page": "100"}
         if params:
             base_params.update({str(k): str(v) for k, v in params.items()})
@@ -140,8 +158,8 @@ def _api_get(path, params=None):
         while url:
             req = urllib.request.Request(url, headers=headers)
             try:
-                with urllib.request.urlopen(req, timeout=10) as resp:
-                    body = resp.read().decode("utf-8", errors="replace")
+                with urllib.request.urlopen(req, timeout=10, context=ctx) as resp:
+                    body = _strip_json_guard(resp.read().decode("utf-8", errors="replace"))
                     resp_url = resp.geturl() if hasattr(resp, "geturl") else ""
                     # Canvas redirects expired sessions to SSO login page
                     if ("login" in body.lower() and "canvas" in body.lower()
@@ -266,9 +284,31 @@ def _looks_like_assessment(item):
 
 # ─── SCORING ──────────────────────────────────────────────────────────────────
 
+_ABBREVIATIONS = {"ch": "chapter", "chap": "chapter", "hw": "homework", "wk": "week"}
+
+_CHAPTER_RE = re.compile(r"\bch(?:ap(?:ter)?)?[ _\-]*0*(\d+)\b", re.IGNORECASE)
+
+
+def _chapter_refs(text):
+    """Chapter numbers explicitly referenced in text ('Ch 1', 'chapter_1', 'Chapter 01') → {'1'}."""
+    return set(_CHAPTER_RE.findall(text or ""))
+
+
 def _tokenize(text):
-    """Lowercase alphanumeric tokens of length >= 3 from text."""
-    return set(re.findall(r"\b[a-z0-9]{3,}\b", text.lower()))
+    """
+    Lowercase word/number tokens from text. Words need length >= 3. Numbers are
+    kept at any length and normalized without leading zeros so 'Ch 1' matches
+    'Chapter 01'. Common course abbreviations expand (ch -> chapter, hw -> homework).
+    """
+    tokens = set()
+    for tok in re.findall(r"[a-z]+|\d+", text.lower()):
+        if tok.isdigit():
+            tokens.add(str(int(tok)))
+        elif tok in _ABBREVIATIONS:
+            tokens.add(_ABBREVIATIONS[tok])
+        elif len(tok) >= 3:
+            tokens.add(tok)
+    return tokens
 
 
 def _score(question_text, tags, item):
@@ -309,7 +349,33 @@ def _score(question_text, tags, item):
             tag_tokens |= _tokenize(t)
         tag_bonus = len(tag_tokens & title_tokens) * 1.5
 
-    return title_overlap * 2.0 + desc_overlap + tag_bonus
+    # Explicit chapter references beat loose number overlap: a question tagged
+    # chapter_1 must prefer "Chapter 01" over "Chapter 3" even when stray numbers
+    # in the question body ("3 significant figures", "Item 7") match other titles.
+    chapter_adjust = 0.0
+    q_chapters = _chapter_refs(question_text) | _chapter_refs(" ".join(tags or []))
+    t_chapters = _chapter_refs(title)
+    if q_chapters and t_chapters:
+        chapter_adjust = 6.0 if (q_chapters & t_chapters) else -4.0
+
+    return title_overlap * 2.0 + desc_overlap + tag_bonus + chapter_adjust
+
+
+def _assignment_metadata_text(a):
+    """
+    External-tool assignments (e.g. Macmillan Achieve homework) have empty
+    descriptions — the question content lives outside Canvas. Return the
+    metadata Canvas does have so the answer model still gets assignment context.
+    """
+    parts = []
+    if a.get("due_at"):
+        parts.append(f"Due: {a['due_at']}")
+    if a.get("points_possible") is not None:
+        parts.append(f"Points possible: {a['points_possible']}")
+    if "external_tool" in (a.get("submission_types") or []):
+        parts.append("This assignment is hosted on an external tool (e.g. Macmillan Achieve); "
+                     "the individual question items are not visible in Canvas.")
+    return " | ".join(parts)
 
 
 # ─── CONTEXT BLOCK BUILDER ────────────────────────────────────────────────────
@@ -466,6 +532,8 @@ def _retrieve_inner(question_text, tags, course_id):
                     if ctype == "assignment":
                         full = get_assignment(resolved_course_id, item.get("id", "")) or item
                         text = _strip_html(full.get("description") or "")
+                        if not text:
+                            text = _assignment_metadata_text(full)
                         title = full.get("name") or full.get("title") or ""
                         url = full.get("html_url") or ""
 
@@ -481,13 +549,19 @@ def _retrieve_inner(question_text, tags, course_id):
                     else:
                         continue
 
+                    # Assessment check: the top-ranked match is what the question
+                    # is about — if it's an assessment, the caller must skip the
+                    # question. Lower-ranked assessment items are merely nearby
+                    # material: drop them so quiz/exam content never reaches the
+                    # answer model, but don't veto the whole question.
+                    if _looks_like_assessment(full):
+                        if cand is top[0]:
+                            is_assessment = True
+                        continue
+
                     # Binary/non-text items have no extractable text — skip gracefully
                     if not text:
                         continue
-
-                    # Assessment check: flag if any fetched material is an assessment
-                    if _looks_like_assessment(full):
-                        is_assessment = True
 
                     excerpts.append({
                         "title": title,
@@ -496,7 +570,7 @@ def _retrieve_inner(question_text, tags, course_id):
                         "url": url,
                     })
 
-                if excerpts:
+                if excerpts or is_assessment:
                     return {
                         "found": True,
                         "is_assessment": is_assessment,
@@ -507,9 +581,13 @@ def _retrieve_inner(question_text, tags, course_id):
     # Fallback: scan local file cache
     local_excerpts = _search_local_cache(question_text, tags)
     if local_excerpts:
-        is_assessment = any(
-            _looks_like_assessment({"name": ex["title"]}) for ex in local_excerpts
-        )
+        # Same top-match semantics as the live path: only the best match vetoes;
+        # lower-ranked assessment files are dropped from the context instead.
+        is_assessment = _looks_like_assessment({"name": local_excerpts[0]["title"]})
+        local_excerpts = [
+            ex for ex in local_excerpts
+            if not _looks_like_assessment({"name": ex["title"]})
+        ]
         return {
             "found": True,
             "is_assessment": is_assessment,

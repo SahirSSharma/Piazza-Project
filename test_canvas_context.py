@@ -110,7 +110,7 @@ def _make_url_dispatcher(assignments, pages=None, pages_full=None):
     pages = pages if pages is not None else MOCK_PAGES
     pages_full = pages_full if pages_full is not None else MOCK_PAGE_FULL
 
-    def side_effect(req, timeout=None):
+    def side_effect(req, timeout=None, context=None):
         url = req.full_url
         path = url.split("?")[0]  # strip query string for routing
 
@@ -165,7 +165,7 @@ class TestCanvasContext(unittest.TestCase):
         captured = []
         base_dispatch = _make_url_dispatcher(MOCK_ASSIGNMENTS)
 
-        def capturing_side_effect(req, timeout=None):
+        def capturing_side_effect(req, timeout=None, context=None):
             captured.append(req)
             return base_dispatch(req, timeout=timeout)
 
@@ -299,7 +299,7 @@ class TestCanvasContext(unittest.TestCase):
         """Requests carry Cookie header with full cookie string; Authorization header is absent."""
         captured = []
 
-        def side_effect(req, timeout=None):
+        def side_effect(req, timeout=None, context=None):
             captured.append(req)
             return _mock_response([])
 
